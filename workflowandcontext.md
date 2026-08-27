@@ -22,7 +22,7 @@ root-folder/
 ├── app
     └──app.py              # Flask server, API endpoints, platform integration
     └──init__.py
-├── formatting.py          # Code formatting and HTML-to-text extraction helpers
+├── formatting.py          # Code formatting
 ├── templates/
 │   └── index.html         # Main UI workspace layout
 └── static/
