@@ -17,7 +17,6 @@
 
 This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or 'product'. Any similarities are purely coincidental. The author will NOT be held responsible for any forks or copies of this software which may immitate any of the above mentioned items.
 
-![logoslide](assets/logofull.png)
 
 > ATTENTION: This is a brief introduction to this project, meant for onboarding and getting started. To see examples, details, project explainations and implementation, refer to [Here](workflowandcontext.md)
 
