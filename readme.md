@@ -46,23 +46,19 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 ## SHORTCUTS
 
 
-| Shortcuts |Description|
-|:---:|:---:|
-| Ctrl + N | New File |
-| Ctrl + Shift + N | New Window |
-| Ctrl + O | Open File |
-| Ctrl + K + O | Open Folder |
-| Ctrl + S | Save File |
-| Ctrl + Shift + S | Save As |
-| Alt + Shift + S | Save Copy As |
-| Ctrl + P | Print Window |
-| Ctrl + X | Cut Text |
-| Ctrl + C | Copy Text |
-| Ctrl + V | Paste Text |
-| Ctrl + A | Select All Text |
-| Ctrl + Z | Undo edit |
-| Ctrl + Y | Redo edit |
-| Ctrl + ` | Open Terminal |
+| Shortcut | Action | Implementation |
+| --- | --- | --- |
+| `Ctrl + N` | New file in root/target directory | Triggers `➕` sidebar button or fallback prompt |
+| `Ctrl + Shift + N` | Fresh window ("No file open") | Resets active file state and clears editor canvas |
+| `Ctrl + `` | Open default Bash or CMD terminal | Calls `POST /open-terminal` |
+| `Ctrl + S` | Save active file | Calls `POST /save-file` |
+| `Ctrl + Z` | Undo inside editor | Executes `document.execCommand('undo')` |
+| `Ctrl + Y` | Redo inside editor | Executes `document.execCommand('redo')` |
+| `Ctrl + X` | Cut selected text | Executes `document.execCommand('cut')` |
+| `Ctrl + C` | Copy selected text | Executes `document.execCommand('copy')` |
+| `Ctrl + V` | Paste copied text | Standard native canvas paste |
+| `Ctrl + K` -> `Ctrl + O` | Open directory picker | Triggers folder input picker |
+| `Ctrl + O` | Open single file picker | Triggers file input picker |
 
 
 
