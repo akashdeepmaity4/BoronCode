@@ -1,4 +1,4 @@
-# VERITAS CODE - v1.0.1 Stable Release 
+# BORON CODE - v1.0.1 Stable Release 
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white)![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white)![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white)![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
  
@@ -91,7 +91,7 @@ pip install -r requirements.txt
 
 ### 1. Windows Application (Recommended for all windows users)
 
-1. Download the latest release from [here](https://github.com/VeritasSoftware/veritas-code/releases)
+1. Download the latest release from [here](https://github.com/BoronSoftware/Boron-code/releases)
 
 
 (comming soon...)

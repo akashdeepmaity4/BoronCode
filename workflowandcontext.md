@@ -1,6 +1,6 @@
-# Veritas Code - Project Context & Architecture
+# Boron Code - Project Context & Architecture
 
-This document serves as the absolute source of truth for the Veritas Code application. If context is lost or state needs to be rebuilt from scratch, this document contains all specifications, exact project layouts, file contents, and logic required to restore the app.
+This document serves as the absolute source of truth for the Boron Code application. If context is lost or state needs to be rebuilt from scratch, this document contains all specifications, exact project layouts, file contents, and logic required to restore the app.
 
 ---
 

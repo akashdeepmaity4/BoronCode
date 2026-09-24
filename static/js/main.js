@@ -1,5 +1,5 @@
 /* =========================================================================
-   Veritas Code — frontend logic
+   Boron Code — frontend logic
    Monaco-only editor. No contentEditable text canvas.
    ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const actionNewFileBtn = el('actionNewFileBtn');
   const actionOpenFolderBtn = el('actionOpenFolderBtn');
 
-  const GITHUB_REPO_URL = 'https://github.com/akashdeepmaity4/VeritasCode/blob/main';
+  const GITHUB_REPO_URL = 'https://github.com/akashdeepmaity4/BoronCode/blob/main';
 
   // --------------------------------------------------------------------- //
   // Utilities
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function sanitizeInput(text) {
     if (typeof text !== 'string') return '';
     return text.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-               .replace(/'/g, '&#x27;').replace(/`/g, '&#x60;').trim();
+      .replace(/'/g, '&#x27;').replace(/`/g, '&#x60;').trim();
   }
 
   // Visible, persistent status toast so save/open/new results are observable.
@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     toast.textContent = message;
     toast.style.background = kind === 'error' ? 'var(--danger)'
-                          : kind === 'warn' ? 'var(--warn)' : 'var(--success)';
+      : kind === 'warn' ? 'var(--warn)' : 'var(--success)';
     toast.style.opacity = '1';
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2800);
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startMonaco();
       } else if (Date.now() > deadline) {
         clearInterval(poll);
-        console.error('VeritasCode: Monaco loader (require) not found. CDN blocked?');
+        console.error('BoronCode: Monaco loader (require) not found. CDN blocked?');
         showStatus('Monaco editor failed to load (CDN blocked?).', 'error');
       }
     }, 50);
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fontFamily: "'Consolas', 'Courier New', monospace"
       });
       isMonacoReady = true;
-      console.log('VeritasCode: Monaco editor ready.');
+      console.log('BoronCode: Monaco editor ready.');
 
       monacoEditor.onDidChangeModelContent(() => { activeFile.dirty = true; });
 
@@ -212,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => newBlankFile());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
     }, function (err) {
-      console.error('VeritasCode: Monaco failed to load:', err);
+      console.error('BoronCode: Monaco failed to load:', err);
       showStatus('Monaco editor failed to load. Check your connection.', 'error');
     });
   }
@@ -382,7 +382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const content = getEditorContent();
     const defaultName = 'copy_' + (activeFile.name || 'untitled.' + activeFile.ext);
     let namePrompt = null;
-    try { namePrompt = prompt('Save copy as:', defaultName); } catch (e) {}
+    try { namePrompt = prompt('Save copy as:', defaultName); } catch (e) { }
     if (!namePrompt || !namePrompt.trim()) return;
     const cleanName = namePrompt.trim().replace(/[\\/]+/g, '');
     if (!cleanName) { showStatus('Invalid file name.', 'error'); return; }
@@ -913,5 +913,5 @@ document.addEventListener('DOMContentLoaded', () => {
   if (themeStatusText) themeStatusText.textContent = 'Enable Light Mode';
   if (linesStatusText) linesStatusText.textContent = 'Hide Line Numbers';
 
-  console.log('VeritasCode: UI initialized. File menu handlers bound.');
+  console.log('BoronCode: UI initialized. File menu handlers bound.');
 });

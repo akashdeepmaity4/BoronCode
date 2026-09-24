@@ -11,7 +11,7 @@ This is not in any way a tutorial, or a copy of any other editors, brands or pro
 ![a](assets/darkmodenew.png)
 
 ###  For Windows Users:
- - Download the Latest release from [here](https://github.com/VeritasSoftware/veritas-code/releases)
+ - Download the Latest release from Github Releases.
  - Run the installer wizard and follow the instructions.
 
  OR 
@@ -23,7 +23,7 @@ This is not in any way a tutorial, or a copy of any other editors, brands or pro
  - Download the codebase.
  Run launcher.py to launch the PWA (entire codebase should be downloaded to prevent any errors)
 
-```
+```bash
 cd path/to/root/directory
 python launcher.py
 ```
@@ -33,12 +33,7 @@ python launcher.py
 - Download the codebase.
 - Run launcher.py to launch the PWA (entire codebase should be downloaded to prevent any errors)
 
-```
+```bash
 cd path/to/root/directory
 python launcher.py
 ```
-
-
-## USAGE 
-
-coming in v2.0 ...

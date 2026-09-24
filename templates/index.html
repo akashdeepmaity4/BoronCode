@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Veritas Code</title>
+  <title>Boron Code</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <script>
     (function () {
@@ -18,7 +18,7 @@
       var i = 0;
       function tryLoad() {
         if (typeof window.require !== 'undefined' && window.require.config) return;
-        if (i >= CDNS.length) { console.error('VeritasCode: all Monaco CDNs failed'); return; }
+        if (i >= CDNS.length) { console.error('BoronCode: all Monaco CDNs failed'); return; }
         window.__monacoVsPath = CDNS[i];
         var s = document.createElement('script');
         s.src = CDNS[i] + '/loader.js';
@@ -40,7 +40,7 @@
   <input type="file" id="folderPickerLocal" webkitdirectory directory multiple style="display: none;">
 
   <header class="app-header">
-    <span class="app-title">Veritas Code</span>
+    <span class="app-title">Boron Code</span>
 
     <!-- File Menu -->
     <div class="menu-dropdown-container">

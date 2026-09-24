@@ -1,6 +1,6 @@
-$css = Get-Content -Raw "d:\projects\VeritasCode\static\css\style.css"
-$html = (Get-Content -Raw "d:\projects\VeritasCode\templates\index.html") + (Get-Content -Raw "d:\projects\VeritasCode\templates\apiform.html")
-$js   = Get-Content -Raw "d:\projects\VeritasCode\static\js\main.js"
+$css = Get-Content -Raw "d:\projects\BoronCode\static\css\style.css"
+$html = (Get-Content -Raw "d:\projects\BoronCode\templates\index.html") + (Get-Content -Raw "d:\projects\BoronCode\templates\apiform.html")
+$js   = Get-Content -Raw "d:\projects\BoronCode\static\js\main.js"
 $haystack = $html + "`n" + $js
 
 $matches = [regex]::Matches($css, '\.([a-zA-Z][a-zA-Z0-9_-]*)')

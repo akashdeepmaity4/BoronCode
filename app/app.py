@@ -1,9 +1,4 @@
-"""Veritas Code backend.
-
-A small Flask API that powers the Veritas Code editor UI. The frontend is a
-single-page Monaco editor; this backend handles file I/O (anchored to the
-project workspace root), AI provider proxying, and terminal/process launching.
-
+"""
 Run directly for browser/localhost use:
     python app/app.py
 Or via launcher.py for the pywebview desktop window.
@@ -254,7 +249,7 @@ def call_external_ai_api(provider, api_key, prompt, code_context=""):
         return {
             'model': 'gpt-3.5-turbo',
             'messages': [
-                {'role': 'system', 'content': 'You are an expert programming assistant in Veritas Code IDE.'},
+                {'role': 'system', 'content': 'You are an expert programming assistant in Boron Code IDE.'},
                 {'role': 'user', 'content': full_prompt}
             ]
         }
@@ -497,4 +492,4 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=False)
