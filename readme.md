@@ -1,10 +1,9 @@
 # BORON CODE - v1.0.1 Stable Release 
 
-![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white)![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white)![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white)![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white)![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white) ![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white) ![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white) ![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
  
 ## WHAT'S NEW 🚀
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue) ![Version](https://img.shields.io/badge/version-1.0.0-brightgreen)
 
 ✅ Implemented a native Chat Window to use AI locally or via an API* (Under testing)
 
@@ -48,7 +47,7 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 
 | Shortcut | Action | Implementation |
 | --- | --- | --- |
-| `Ctrl + N` | New file in root/target directory | Triggers `➕` sidebar button or fallback prompt |
+| `Ctrl + N` | New file in root/target directory | Triggers sidebar button or fallback prompt |
 | `Ctrl + Shift + N` | Fresh window ("No file open") | Resets active file state and clears editor canvas |
 | `Ctrl + `` | Open default Bash or CMD terminal | Calls `POST /open-terminal` |
 | `Ctrl + S` | Save active file | Calls `POST /save-file` |
