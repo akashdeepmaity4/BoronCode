@@ -125,7 +125,7 @@ Pyinstaller>=5.9.0
 
 | Shortcut | Action | Implementation |
 | --- | --- | --- |
-| `Ctrl + N` | New file in root/target directory | Triggers `➕` sidebar button or fallback prompt |
+| `Ctrl + N` | New file in root/target directory | Triggers sidebar button or fallback prompt |
 | `Ctrl + Shift + N` | Fresh window ("No file open") | Resets active file state and clears editor canvas |
 | `Ctrl + `` | Open default Bash or CMD terminal | Calls `POST /open-terminal` |
 | `Ctrl + S` | Save active file | Calls `POST /save-file` |
