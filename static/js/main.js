@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let monacoEditor = null;
   let isMonacoReady = false;
   let currentRootDir = null;   // opened folder name (browser) or absolute path (pywebview)
+  let ctrlKPending = false;    // state tracking for Ctrl+K -> Ctrl+O chord
 
   // --------------------------------------------------------------------- //
   // DOM references
@@ -87,6 +88,43 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#x27;').replace(/`/g, '&#x60;').trim();
   }
 
+  function routeUIAction(action, options = {}) {
+    if (!action) return;
+    switch (action) {
+      case 'new-file': handleNewFileShortcut(); break;
+      case 'new-folder': newFolderAction(); break;
+      case 'open-file': openFilePicker(); break;
+      case 'open-folder': openFolderPicker(); break;
+      case 'save': saveCurrentFile(); break;
+      case 'save-as': saveAsFile(); break;
+      case 'save-copy-as': saveCopyAsFile(); break;
+      case 'run-file': runCurrentFile(); break;
+      case 'open-terminal': openTerminalAtActiveTarget(); break;
+      case 'toggle-theme': toggleTheme(); break;
+      case 'toggle-line-numbers': toggleLineNumbers(); break;
+      case 'toggle-preview': toggleMarkdownPreview(); break;
+      case 'print-window': window.print(); break;
+      case 'close-window': freshWindow(); break;
+      case 'exit-app':
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.close) window.pywebview.api.close();
+        else window.close();
+        break;
+      case 'undo': document.execCommand('undo'); break;
+      case 'redo': document.execCommand('redo'); break;
+      case 'cut': document.execCommand('cut'); break;
+      case 'copy': document.execCommand('copy'); break;
+      case 'paste': document.execCommand('paste'); break;
+      case 'select-all':
+        if (monacoEditor && isMonacoReady) {
+          const model = monacoEditor.getModel();
+          if (model) monacoEditor.setSelection(model.getFullModelRange());
+        }
+        break;
+      default:
+        if (options.onUnknown) options.onUnknown(action);
+    }
+  }
+
   // Visible, persistent status toast so save/open/new results are observable.
   let toastTimer = null;
   function showStatus(message, kind) {
@@ -138,16 +176,8 @@ document.addEventListener('DOMContentLoaded', () => {
     'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/' + MONACO_VERSION + '/min/vs'
   ];
 
-  // The active CDN base that successfully provided the loader. index.html's
-  // loader-fallback script sets window.__monacoVsPath to whichever CDN won;
-  // fall back to the first candidate if it didn't run.
   let monacoVsPath = (window.__monacoVsPath) || MONACO_CDNS[0];
 
-  // Monaco spawns language/web workers. When loaded from a CDN via the AMD
-  // loader, cross-origin worker scripts are blocked by the browser, which is
-  // the real cause of "Monaco editor failed to load. Check your connection."
-  // We proxy every worker through a same-origin blob URL that importScripts
-  // the real worker from the CDN. This must be set BEFORE require.config().
   window.MonacoEnvironment = {
     getWorkerUrl: function () {
       const workerProbe = monacoVsPath + '/base/worker/workerMain.js';
@@ -159,11 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  // The loader.js script is injected asynchronously by index.html's CDN-
-  // fallback IIFE, so `require` is NOT guaranteed to exist yet when
-  // DOMContentLoaded fires. initMonaco() must wait for the loader to finish
-  // downloading before calling require.config(). We poll for it; if it never
-  // appears (all CDNs down), we surface the original error after a timeout.
   function initMonaco() {
     const loaderReady = () => typeof require !== 'undefined' && !!require.config;
     if (loaderReady()) { startMonaco(); return; }
@@ -206,10 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
       monacoEditor.onDidChangeModelContent(() => { activeFile.dirty = true; });
 
-      // In-editor keyboard shortcuts
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveCurrentFile());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => saveAsFile());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => newBlankFile());
+      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => handleNewFileShortcut());
+      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyN, () => freshWindow());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
     }, function (err) {
       console.error('BoronCode: Monaco failed to load:', err);
@@ -239,10 +264,50 @@ document.addEventListener('DOMContentLoaded', () => {
   initMonaco();
 
   // --------------------------------------------------------------------- //
-  // File menu handlers
+  // File menu & Shortcut handlers
   // --------------------------------------------------------------------- //
 
-  // new-file (Ctrl+N): clear editor to an unsaved blank file. No prompt, no disk write.
+  // Ctrl+N implementation
+  function handleNewFileShortcut() {
+    if (actionNewFileBtn) {
+      actionNewFileBtn.click();
+    } else {
+      newBlankFile();
+    }
+  }
+
+  function newFolderAction() {
+    const targetBase = currentRootDir || '.';
+    const defaultName = 'new-folder';
+    const rawName = window.prompt('Create folder:', defaultName);
+    if (rawName === null) {
+      showStatus('Folder creation cancelled.', 'warn');
+      return;
+    }
+    const folderName = rawName.trim();
+    if (!folderName || /[\\/]/.test(folderName)) {
+      showStatus('Folder name is invalid.', 'error');
+      return;
+    }
+
+    fetch('/create-folder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: folderName, targetDir: targetBase })
+    })
+      .then(handleJsonResponse)
+      .then((data) => {
+        if (data.status === 'success') {
+          showStatus('Folder created: ' + data.path, 'success');
+          if (window.__refreshWorkspaceTree) window.__refreshWorkspaceTree();
+        } else {
+          showStatus(data.message || 'Folder creation failed.', 'error');
+        }
+      })
+      .catch((err) => showStatus('Folder creation failed: ' + err, 'error'));
+  }
+
+  // new-file: clear editor to an unsaved blank file. No prompt, no disk write.
   function newBlankFile() {
     activeFile.path = null;
     activeFile.handle = null;
@@ -254,9 +319,86 @@ document.addEventListener('DOMContentLoaded', () => {
     showStatus('New blank file (unsaved)');
   }
 
+  // Ctrl+Shift+N implementation: create a new folder in the active workspace root.
+  function freshWindow() {
+    activeFile.path = null;
+    activeFile.handle = null;
+    activeFile.name = 'No file open';
+    activeFile.ext = '';
+    activeFile.dirty = false;
+    setEditorContent('', 'No file open');
+    showStatus('Fresh window initialized');
+  }
+
   // open-file (Ctrl+O): trigger the OS file picker and load the chosen file.
   function openFilePicker() {
     if (filePicker) filePicker.click();
+  }
+
+  // Open directory picker (Ctrl+K -> Ctrl+O / actionOpenFolderBtn)
+  function openFolderPicker() {
+    if (folderPicker) folderPicker.click();
+  }
+
+  function toggleTheme() {
+    const isLight = document.body.classList.toggle('theme-light');
+    document.body.classList.toggle('theme-dark', !isLight);
+    if (themeStatusText) themeStatusText.textContent = isLight ? 'Enable Dark Mode' : 'Enable Light Mode';
+    if (monacoEditor && isMonacoReady) monaco.editor.setTheme(isLight ? 'vs' : 'vs-dark');
+  }
+
+  function toggleLineNumbers() {
+    if (monacoEditor && isMonacoReady) {
+      const opt = monacoEditor.getOption(monaco.editor.EditorOption.lineNumbers);
+      const isOff = opt.renderType === 0;
+      const next = isOff ? 'on' : 'off';
+      monacoEditor.updateOptions({ lineNumbers: next });
+      if (linesStatusText) linesStatusText.textContent = next === 'on' ? 'Hide Line Numbers' : 'Show Line Numbers';
+    }
+  }
+
+  function toggleMarkdownPreview() {
+    if (!['md', 'markdown'].includes(extOf(activeFile.name))) {
+      showStatus('Markdown preview is only available for Markdown files.', 'warn');
+      return;
+    }
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${sanitizeInput(activeFile.name)}</title><style>body{font-family:system-ui;padding:2rem;line-height:1.5;color:#111;background:#fff;}pre{background:#f5f5f5;padding:1rem;border-radius:6px;overflow:auto;}code{background:#f3f3f3;padding:0.1rem 0.3rem;border-radius:4px;}</style></head><body>${(getEditorContent() || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body></html>`;
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    if (!popup) {
+      showStatus('Preview blocked by the browser. Allow popups and try again.', 'warn');
+      return;
+    }
+    popup.document.write(html);
+    popup.document.close();
+  }
+
+  function runCurrentFile() {
+    if (!activeFile.path) { showStatus('No saved disk file active to run.', 'warn'); return; }
+    fetch('/run-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: activeFile.path })
+    })
+      .then(handleJsonResponse)
+      .then(data => {
+        if (data.status === 'error') showStatus('Execution error: ' + data.message, 'error');
+        else alert(data.stdout || data.stderr || 'Execution completed with no output.');
+      })
+      .catch(err => showStatus('Run failed: ' + err, 'error'));
+  }
+
+  function openTerminalAtActiveTarget() {
+    fetch('/open-terminal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cwd: getTerminalTargetCwd() })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status !== 'success') alert(`Terminal Error: ${data.message}`);
+        else showStatus('Terminal opened with ' + (data.shell || 'default shell') + '.', 'success');
+      })
+      .catch(err => console.error('Terminal execution error:', err));
   }
 
   if (filePicker) {
@@ -335,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
   async function saveAsFile() {
     const content = getEditorContent();
     const defaultName = (activeFile.name && activeFile.name !== 'No file open')
-      ? activeFile.name : 'untitled.' + activeFile.ext;
+      ? activeFile.name : 'untitled.' + (activeFile.ext || 'py');
 
     let namePrompt = null;
     try { namePrompt = prompt('Save file as:', defaultName); }
@@ -380,7 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // save-copy-as (Alt+Shift+S): save a copy without changing the active file.
   async function saveCopyAsFile() {
     const content = getEditorContent();
-    const defaultName = 'copy_' + (activeFile.name || 'untitled.' + activeFile.ext);
+    const defaultName = 'copy_' + (activeFile.name || 'untitled.' + (activeFile.ext || 'py'));
     let namePrompt = null;
     try { namePrompt = prompt('Save copy as:', defaultName); } catch (e) { }
     if (!namePrompt || !namePrompt.trim()) return;
@@ -437,19 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!item || item.classList.contains('disabled')) return;
       const action = item.dataset.action;
       closeAllDropdowns();
-      switch (action) {
-        case 'new-file': newBlankFile(); break;
-        case 'open-file': openFilePicker(); break;
-        case 'save': saveCurrentFile(); break;
-        case 'save-as': saveAsFile(); break;
-        case 'save-copy-as': saveCopyAsFile(); break;
-        case 'print-window': window.print(); break;
-        case 'close-window': newBlankFile(); break;
-        case 'exit-app':
-          if (window.pywebview && window.pywebview.api && window.pywebview.api.close) window.pywebview.api.close();
-          else window.close();
-          break;
-      }
+      routeUIAction(action);
     });
   }
 
@@ -462,23 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
       closeAllDropdowns();
       focusEditor();
       if (!monacoEditor || !isMonacoReady) return;
-      switch (action) {
-        case 'undo': monacoEditor.trigger('menu', 'undo', null); break;
-        case 'redo': monacoEditor.trigger('menu', 'redo', null); break;
-        case 'cut': document.execCommand('cut'); break;
-        case 'copy': document.execCommand('copy'); break;
-        case 'paste':
-          try {
-            const text = await navigator.clipboard.readText();
-            const sel = monacoEditor.getSelection();
-            monacoEditor.executeEdits('paste', [{ range: sel, text, forceMoveMarkers: true }]);
-          } catch (err) { document.execCommand('paste'); }
-          break;
-        case 'select-all':
-          const model = monacoEditor.getModel();
-          if (model) monacoEditor.setSelection(model.getFullModelRange());
-          break;
-      }
+      routeUIAction(action);
     });
   }
 
@@ -489,23 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!item || item.classList.contains('disabled')) return;
       const action = item.dataset.action;
       closeAllDropdowns();
-      switch (action) {
-        case 'toggle-theme':
-          const isLight = document.body.classList.toggle('theme-light');
-          document.body.classList.toggle('theme-dark', !isLight);
-          if (themeStatusText) themeStatusText.textContent = isLight ? 'Enable Dark Mode' : 'Enable Light Mode';
-          if (monacoEditor && isMonacoReady) monaco.editor.setTheme(isLight ? 'vs' : 'vs-dark');
-          break;
-        case 'toggle-line-numbers':
-          if (monacoEditor && isMonacoReady) {
-            const opt = monacoEditor.getOption(monaco.editor.EditorOption.lineNumbers);
-            const isOff = opt.renderType === 0;
-            const next = isOff ? 'on' : 'off';
-            monacoEditor.updateOptions({ lineNumbers: next });
-            if (linesStatusText) linesStatusText.textContent = next === 'on' ? 'Hide Line Numbers' : 'Show Line Numbers';
-          }
-          break;
-      }
+      routeUIAction(action);
     });
   }
 
@@ -546,24 +644,134 @@ document.addEventListener('DOMContentLoaded', () => {
     if (monacoEditor && isMonacoReady) monacoEditor.updateOptions({ fontWeight: e.target.checked ? 'bold' : 'normal' });
   });
 
+  function getTerminalTargetCwd() {
+    if (activeFile && activeFile.path) {
+      const dir = activeFile.path.replace(/\\/g, '/');
+      const lastSlash = dir.lastIndexOf('/');
+      if (lastSlash > 0) return dir.slice(0, lastSlash);
+      return dir.includes(':') ? dir.split(':')[0] + ':' : 'C:/';
+    }
+    if (currentRootDir) return currentRootDir;
+    return 'C:/';
+  }
+
   // --------------------------------------------------------------------- //
-  // Keyboard shortcuts (document-level; also fire when focus is outside Monaco)
+  // Keyboard shortcuts (document-level; intercepts all standard keybindings)
   // --------------------------------------------------------------------- //
   document.addEventListener('keydown', (e) => {
     const isCtrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
 
-    if (e.altKey && e.shiftKey && key === 's') { e.preventDefault(); saveCopyAsFile(); return; }
-    if (isCtrl && key === 'p') { e.preventDefault(); window.print(); return; }
-    if (isCtrl && e.shiftKey && key === 's') { e.preventDefault(); saveAsFile(); return; }
-    if (isCtrl && !e.shiftKey && key === 's') { e.preventDefault(); saveCurrentFile(); return; }
-    if (isCtrl && !e.shiftKey && key === 'n') { e.preventDefault(); newBlankFile(); return; }
-    if (isCtrl && key === 'o') { e.preventDefault(); openFilePicker(); return; }
+    // Ctrl + K chord handling (Ctrl+K -> Ctrl+O)
+    if (isCtrl && key === 'k') {
+      e.preventDefault();
+      ctrlKPending = true;
+      setTimeout(() => { ctrlKPending = false; }, 2000);
+      return;
+    }
+
+    if (ctrlKPending && isCtrl && key === 'o') {
+      e.preventDefault();
+      ctrlKPending = false;
+      openFolderPicker();
+      return;
+    }
+    ctrlKPending = false;
+
+    // Ctrl + Shift + N: New folder
+    if (isCtrl && e.shiftKey && key === 'n') {
+      e.preventDefault();
+      newFolderAction();
+      return;
+    }
+
+    // Ctrl + N: New file via sidebar button or fallback prompt
+    if (isCtrl && !e.shiftKey && key === 'n') {
+      e.preventDefault();
+      handleNewFileShortcut();
+      return;
+    }
+
+    // Ctrl + Shift + V: Markdown preview toggle when applicable
+    if (isCtrl && e.shiftKey && key === 'v') {
+      e.preventDefault();
+      toggleMarkdownPreview();
+      return;
+    }
+
+    // Ctrl + ` : Launch Terminal
     if (isCtrl && (e.key === '`' || e.code === 'Backquote')) {
       e.preventDefault();
-      fetch('/open-terminal', { method: 'POST' }).then(handleJsonResponse)
-        .then(d => { if (d.status !== 'success') showStatus('Terminal error: ' + d.message, 'error'); })
-        .catch(err => showStatus('Terminal error: ' + err, 'error'));
+      openTerminalAtActiveTarget();
+      return;
+    }
+
+    // Ctrl + S: Save file
+    if (isCtrl && !e.shiftKey && key === 's') {
+      e.preventDefault();
+      saveCurrentFile();
+      return;
+    }
+
+    // Ctrl + Shift + S: Save As
+    if (isCtrl && e.shiftKey && key === 's') {
+      e.preventDefault();
+      saveAsFile();
+      return;
+    }
+
+    // Alt + Shift + S: Save copy as
+    if (e.altKey && e.shiftKey && key === 's') {
+      e.preventDefault();
+      saveCopyAsFile();
+      return;
+    }
+
+    // Ctrl + O: Open single file picker
+    if (isCtrl && key === 'o') {
+      e.preventDefault();
+      openFilePicker();
+      return;
+    }
+
+    // Ctrl + Z: Undo
+    if (isCtrl && !e.shiftKey && key === 'z') {
+      e.preventDefault();
+      document.execCommand('undo');
+      return;
+    }
+
+    // Ctrl + Y: Redo
+    if (isCtrl && key === 'y') {
+      e.preventDefault();
+      document.execCommand('redo');
+      return;
+    }
+
+    // Ctrl + X: Cut
+    if (isCtrl && key === 'x') {
+      e.preventDefault();
+      document.execCommand('cut');
+      return;
+    }
+
+    // Ctrl + C: Copy
+    if (isCtrl && key === 'c') {
+      e.preventDefault();
+      document.execCommand('copy');
+      return;
+    }
+
+    // Ctrl + V: Paste
+    if (isCtrl && key === 'v') {
+      // Standard native canvas paste handling allowed
+      return;
+    }
+
+    // Ctrl + P: Print window
+    if (isCtrl && key === 'p') {
+      e.preventDefault();
+      window.print();
       return;
     }
   });
@@ -574,20 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (saveFileBtn) saveFileBtn.addEventListener('click', () => saveCurrentFile());
 
   if (runFileBtn) {
-    runFileBtn.addEventListener('click', () => {
-      if (!activeFile.path) { showStatus('No saved disk file active to run.', 'warn'); return; }
-      fetch('/run-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: activeFile.path })
-      })
-        .then(handleJsonResponse)
-        .then(data => {
-          if (data.status === 'error') showStatus('Execution error: ' + data.message, 'error');
-          else alert(data.stdout || data.stderr || 'Execution completed with no output.');
-        })
-        .catch(err => showStatus('Run failed: ' + err, 'error'));
-    });
+    runFileBtn.addEventListener('click', () => routeUIAction('run-file'));
   }
 
   // --------------------------------------------------------------------- //
@@ -595,8 +790,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------- //
   if (notesToggleBtn) notesToggleBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
   if (logoBtn) logoBtn.addEventListener('click', () => sidebar.classList.remove('collapsed'));
-  if (actionNewFileBtn) actionNewFileBtn.addEventListener('click', () => newBlankFile());
-  if (actionOpenFolderBtn) actionOpenFolderBtn.addEventListener('click', () => { if (folderPicker) folderPicker.click(); });
+  if (actionNewFileBtn) actionNewFileBtn.addEventListener('click', () => routeUIAction('new-file'));
+  if (actionOpenFolderBtn) actionOpenFolderBtn.addEventListener('click', () => routeUIAction('open-folder'));
 
   // Folder picker -> build tree
   if (folderPicker) {
@@ -674,9 +869,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return container;
   }
 
-  // --------------------------------------------------------------------- //
-  // AI Hub (apiform.html) & floating popup
-  // --------------------------------------------------------------------- //
+
+
+  // (apiform.html) - floating popup
+
   const aiModalBtn = el('aiModalBtn');
   const apiformOverlay = el('apiformOverlay');
   const apiFormCloseBtn = el('apiFormCloseBtn');
@@ -685,6 +881,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const sectionExternalApi = el('sectionExternalApi');
   const sectionLocalModel = el('sectionLocalModel');
   const apiProviderSelect = el('apiProviderSelect');
+  const apiGatewayInput = el('apiGatewayInput');
+  const apiModelInput = el('apiModelInput');
   const apiKeyInput = el('apiKeyInput');
   const toggleApiKeyVisBtn = el('toggleApiKeyVisBtn');
   const btnConnectApi = el('btnConnectApi');
@@ -692,6 +890,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnBrowseLocalModel = el('btnBrowseLocalModel');
   const btnLoadLocalModel = el('btnLoadLocalModel');
   const btnEnlightenMe = el('btnEnlightenMe');
+  const localSetupToggle = el('localSetupToggle');
+  const localSetupGuide = el('localSetupGuide');
   const folderPickerLocal = el('folderPickerLocal');
   const enlightenResultsArea = el('enlightenResultsArea');
   const foundModelsSelect = el('foundModelsSelect');
@@ -751,22 +951,30 @@ document.addEventListener('DOMContentLoaded', () => {
     btnConnectApi.addEventListener('click', () => {
       const provider = sanitizeInput(apiProviderSelect ? apiProviderSelect.value : '');
       const apiKey = sanitizeInput(apiKeyInput ? apiKeyInput.value : '');
-      if (!provider || !apiKey) {
+      const gatewayUrl = sanitizeInput(apiGatewayInput ? apiGatewayInput.value : '');
+      const modelName = sanitizeInput(apiModelInput ? apiModelInput.value : '');
+      const effectiveProvider = gatewayUrl ? 'Custom' : provider;
+
+      if (!effectiveProvider || (!apiKey && effectiveProvider !== 'Custom')) {
         if (apiFormStatus) { apiFormStatus.className = 'apiform-status error'; apiFormStatus.textContent = 'Please select a provider and enter your API key.'; }
+        return;
+      }
+      if (effectiveProvider === 'Custom' && !gatewayUrl) {
+        if (apiFormStatus) { apiFormStatus.className = 'apiform-status error'; apiFormStatus.textContent = 'Please enter a gateway URL for custom API connections.'; }
         return;
       }
       fetch('/api/verify-external-api', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider, apiKey })
+        body: JSON.stringify({ provider: effectiveProvider, apiKey, gatewayUrl, modelName })
       })
         .then(handleJsonResponse)
         .then(data => {
           if (data.status === 'success') {
-            isAiConfigured = true; activeAiProvider = provider; activeAiKey = apiKey;
+            isAiConfigured = true; activeAiProvider = effectiveProvider; activeAiKey = apiKey; activeModelPath = gatewayUrl;
             if (apiFormStatus) { apiFormStatus.className = 'apiform-status success'; apiFormStatus.textContent = data.message; }
             setTimeout(() => {
               if (apiformOverlay) apiformOverlay.classList.add('hidden');
-              openAiPopup('\u{1F916} AI Assistant (' + provider + ')', 'Connected to ' + provider + ' API successfully!');
+              openAiPopup('\u{1F916} AI Assistant (' + effectiveProvider + ')', 'Connected to ' + effectiveProvider + ' API successfully!');
             }, 400);
           } else if (apiFormStatus) {
             apiFormStatus.className = 'apiform-status error'; apiFormStatus.textContent = data.message || 'API connection failed.';
@@ -808,6 +1016,13 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         })
         .catch(err => { if (apiFormStatus) { apiFormStatus.className = 'apiform-status error'; apiFormStatus.textContent = 'Model verification error: ' + err; } });
+    });
+  }
+
+  if (localSetupToggle && localSetupGuide) {
+    localSetupToggle.addEventListener('click', () => {
+      const expanded = localSetupGuide.classList.toggle('hidden');
+      localSetupToggle.setAttribute('aria-expanded', String(!expanded));
     });
   }
 
@@ -883,9 +1098,20 @@ document.addEventListener('DOMContentLoaded', () => {
       m.className = 'ai-popup-msg user'; m.textContent = prompt;
       aiPopupBody.appendChild(m); aiPopupBody.scrollTop = aiPopupBody.scrollHeight;
     }
+    const gatewayUrl = sanitizeInput(apiGatewayInput ? apiGatewayInput.value : '');
+    const modelName = sanitizeInput(apiModelInput ? apiModelInput.value : '');
+    const effectiveProvider = gatewayUrl ? 'Custom' : activeAiProvider;
     fetch('/api/ai-chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, provider: activeAiProvider, apiKey: activeAiKey, modelPath: activeModelPath, codeContext: getEditorContent() })
+      body: JSON.stringify({
+        prompt,
+        provider: effectiveProvider,
+        apiKey: activeAiKey,
+        modelPath: activeModelPath,
+        gatewayUrl,
+        modelName,
+        codeContext: getEditorContent()
+      })
     })
       .then(handleJsonResponse)
       .then(data => {

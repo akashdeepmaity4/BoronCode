@@ -1,138 +1,165 @@
-# Boron Code - Project Context & Architecture
+# Boron Code: Workflow and Technical Context
 
-This document serves as the absolute source of truth for the Boron Code application. If context is lost or state needs to be rebuilt from scratch, this document contains all specifications, exact project layouts, file contents, and logic required to restore the app.
-
----
-
-## EXAMPLES
-
-### 1. Homepage: Dark mode (default)
-![darkmode](assets/darkmodenew.png)
-
-### 2. Homepage: Light mode
-![lightmode](assets/lightmodenew.png)
-
-### 3. During Working Session 
-![workingsession](assets/whileworking.png)
-
-## 1. Project Directory Structure
-
-```
-root-folder/
-├── app
-    └──app.py              # Flask server, API endpoints, platform integration
-    └──init__.py
-├── formatting.py          # Code formatting
-├── templates/
-│   └── index.html         # Main UI workspace layout
-└── static/
-    └── css/
-        └── style.css      # Themes, colors, light/dark mode
-    └── js/
-        └── main.js        # Event listeners, shortcut handler, tree UI, editor engine
-└──launcher.py             # launches webapp natively using pywebview
-└── FAOs.md
-└── LICENSE.md
-└──setupandusage.md
-```
-
-
-## 2. Core Functional Requirements & Rules
-
-### Editor Text Formatting and Canvas:
-
-1. Monaco Editor integration (@main.js)
-
-### AI Integration:
-
-1. Built an API/Local Model configuration panel (@apiform.html) with:
-
-- sanitized inputs
-- folder scanning for local models
-- persistent floating popup window.
-
-### Theme & Colors:
-
-1. Dark background theme matching VS Code design language (#181818 app background, #1e1e1e sidebar).
-
-1. Accents use VS Code Blue (#007acc / #0098ff). Accent green is strictly replaced by VS Code blue.
-
-1. Text colors: Main text #cccccc, muted text #858585.
-
-### Layout:
-
-#### Top Header:
-
-1. Standard application bar containing File, Edit, View, Settings, Help (left intact as standard menu items).
-
-#### Sidebar:
-
-1. Clickable Notes title in sidebar header collapses the sidebar down to an icon-only strip.
-
-1. Clicking the Logo Icon when collapsed expands the sidebar back out.
-
-1. Opening directories updates the root folder display directly in place of the default tree header.
-
-### Workspace Canvas:
-
-The workspace grid contains a dynamically sizing textCanvas element (contenteditable="true" or editable container).
-Displaying loaded file names: The header bar above the text canvas (#activeFileName) dynamically shows the name of the file currently opened.
-
-### File Opening Behavior (Native Python Tkinter Dialogs):
-
-File Extension Whitelist: Only plain text / code files are rendered inside the editor.
-Allowed extensions: txt, md, js, ts, html, css, json, yaml, yml, py, c, cpp, java, sh.
-Non-code files (images, .pdf, .docx, binary, etc.) are ignored and will not open inside the canvas.
-Loaded text content populates directly into .text-canvas without opening browser tabs or raw file:/// URLs.
-
-
-## Tech Stack & Dependencies
-
-* **Backend:** Python 3 (Flask)
-* **Frontend:** Plain JavaScript (ES6+), HTML5, CSS3
-* **Native Application Wrapper:** `pywebview`
-* **Dependencies (`requirements.txt`):**
-```
-Flask>=3.0.0
-pywebview>=4.0.0
-Pyinstaller>=5.9.0
-```
-
-## API Endpoints (`app.py`)
-
-* `GET /`: Serves `index.html`.
-* `POST /format-content`: Formats code strings based on file extension.
-* `POST /read-file`: Reads text files from disk (restricts `.git` directories).
-* `POST /save-file`: Writes modified editor content back to disk.
-* `POST /create-file`: Creates an empty file in the targeted workspace folder.
-* `POST /create-folder`: Creates a new directory.
-* `POST /run-file`: Executes `.py`, `.js`, or `.sh` files via subprocess.
-* `POST /open-terminal`: Launches local shell environment. Resolution hierarchy:
-1. System `bash` (if available in PATH)
-2. `git-bash.exe` (searches common Windows installation paths)
-3. System default fallback (`cmd` on Windows, native terminal on macOS/Linux)
-
-
+This document is the working source of truth for the Boron Code project. It describes the runtime architecture, operational flow, and the engineering assumptions behind the app rather than a marketing overview.
 
 ---
 
-## Workspace Features & Keyboard Shortcuts
+## 1. Project purpose
 
-* **Indentation Handling:** Tab key defaults to 2 spaces for web formats (`html`, `css`, `json`, `yaml`, `js`, `ts`) and 4 spaces for other languages.
-* **Security Constraints:** Access or modification of `.git` files and subdirectories is strictly prohibited across all endpoints.
+Boron Code is a lightweight local IDE/workspace environment that combines:
+- workspace browsing and file management
+- code execution for local scripts
+- shell access via the operating system terminal
+- AI assistant integration through either cloud providers or custom gateways
+- safe path handling for files and model locations
 
-### Configured Keyboard Shortcuts (`static/js/main.js`)
+The application is implemented primarily as a Flask backend with a browser-based frontend and optional pywebview shell wrapper.
 
-| Shortcut | Action | Implementation |
-| --- | --- | --- |
-| `Ctrl + N` | New file in root/target directory | Triggers sidebar button or fallback prompt |
-| `Ctrl + Shift + N` | Fresh window ("No file open") | Resets active file state and clears editor canvas |
-| `Ctrl + `` | Open default Bash or CMD terminal | Calls `POST /open-terminal` |
-| `Ctrl + S` | Save active file | Calls `POST /save-file` |
-| `Ctrl + Z` | Undo inside editor | Executes `document.execCommand('undo')` |
-| `Ctrl + Y` | Redo inside editor | Executes `document.execCommand('redo')` |
-| `Ctrl + X` | Cut selected text | Executes `document.execCommand('cut')` |
-| `Ctrl + C` | Copy selected text | Executes `document.execCommand('copy')` |
-| `Ctrl + V` | Paste copied text | Standard native canvas paste |
-| `Ctrl + K` -> `Ctrl + O` | Open directory picker | Triggers folder input picker |
-| `Ctrl + O` | Open single file picker | Triggers file input picker |
+---
+
+## 2. Runtime structure
+
+### Primary backend
+- `app/app.py` contains the Flask server, endpoint handlers, path validation helpers, AI provider adapters, terminal resolution logic, and file execution logic.
+
+### UI layer
+- `templates/index.html` and `templates/apiform.html` provide the main workspace and API configuration surfaces.
+- `static/js/main.js` handles the interactive editor behavior, workspace tree updates, and UI event wiring.
+- `static/css/style.css` defines the IDE-style design tokens and dark/light theme patterns.
+
+### Launch wrapper
+- `launcher.py` starts the application in a desktop-style shell using pywebview when a native desktop experience is desired.
+
+### Supporting files
+- `formatting.py` is used for formatting logic and code cleanup helpers.
+- `requirements.txt` defines the runtime dependencies.
+- `tests/` contains regression checks for gateway handling and terminal resolution.
+
+---
+
+## 3. Core execution flow
+
+### Browser / UI request flow
+1. The browser loads the main UI from the Flask app.
+2. User interactions trigger AJAX requests to endpoints in `app/app.py`.
+3. The server validates payloads, resolves workspace paths, and restricts access outside the project root.
+4. Results are returned as JSON payloads for the frontend to update the UI.
+
+### File workflow
+- `read-file` loads workspace content from disk.
+- `save-file` writes sanitized UTF-8 content back to the project file.
+- `create-folder` ensures the destination remains inside the workspace root.
+- `run-file` executes safe script targets only after validation.
+
+### AI workflow
+- `verify-external-api` validates the selected provider and gateway input.
+- `ai-chat` routes requests based on provider choice and API presence.
+- `call_external_ai_api()` handles provider normalization and HTTP requests.
+- `call_local_ai_model()` attempts to contact common local gateways such as localhost ports used by Ollama or similar services.
+
+---
+
+## 4. Security model
+
+The backend is intentionally defensive.
+
+### Path restrictions
+- `resolve_workspace_path()` prevents traversal outside the workspace root.
+- `is_git_restricted()` blocks any path that touches `.git` directories.
+- `is_safe_relative_path()` rejects suspicious shell metacharacters and unsafe file names.
+
+### Input sanitization
+- `sanitize_str()` strips control characters and escapes user-controlled strings before display.
+- Provider names are constrained to a safe allowlist and normalized before outbound API calls.
+- Gateway URLs are normalized to avoid mismatches from trailing slashes or common path patterns.
+
+### Execution restrictions
+- `run-file` accepts only a small set of file extensions and executes via `subprocess.run(..., shell=False)`.
+- No shell interpretation is used with user file paths.
+
+---
+
+## 5. Gateway and provider normalization
+
+Custom gateway support is implemented in a way that handles common endpoint variants.
+
+### URL normalization rules
+- Missing scheme is auto-filled with `http://`.
+- Trailing slashes are stripped.
+- `/chat/completions`, `/api/generate`, and `/v1` suffixes are normalized to a base gateway root.
+- The final OpenAI-compatible endpoint is constructed as `/v1/chat/completions` when needed.
+
+This lets requests work across gateway shapes such as:
+- `localhost:1234/v1/`
+- `https://example.com/base/`
+- `https://api.example.com/chat/completions`
+
+### Provider routing logic
+- Custom and gateway provider labels are treated as a single route category.
+- Non-custom providers still require a valid API key.
+- The external API adapter supports OpenAI-compatible and vendor-specific payload formats, including Gemini and Anthropic style endpoints.
+
+---
+
+## 6. Terminal resolution strategy
+
+Terminal selection is intentionally layered and deterministic.
+
+### Resolution order
+1. `bash` from `PATH`
+2. Common Git for Windows install paths, including `Git\bin\bash.exe`
+3. Git Bash shortcut under the Windows Start Menu
+4. `cmd.exe` fallback on Windows
+5. OS default terminal fallback for other platforms
+
+This logic is implemented in `resolve_terminal_command()` and is intentionally resilient against missing environment setup.
+
+---
+
+## 7. Local AI detection behavior
+
+`call_local_ai_model()` probes candidate gateway URLs and attempts a POST against common OpenAI-compatible local endpoints. It checks a small list of localhost ports and supports:
+- `api/generate`
+- `v1/chat/completions`
+- `chat/completions`
+
+If a direct local model file path exists but no live server is reachable, the function returns a structured warning instead of crashing.
+
+---
+
+## 8. Testing approach
+
+The repo includes focused tests for the highest-risk integration points:
+- custom gateway URL normalization
+- OpenAI-compatible URL construction
+- API verification for custom gateways
+- AI chat route routing for keyless gateway requests
+- terminal resolution fallback logic
+
+The key regression test pattern is to validate actual behavior with mocked network calls rather than pure mock-only assertions.
+
+---
+
+## 9. Operational notes for contributors
+
+When changing backend logic:
+- keep provider names normalized before routing
+- preserve workspace containment checks
+- validate URLs before making outbound HTTP calls
+- ensure all route handlers return JSON with explicit status codes
+
+When changing frontend logic:
+- update the endpoint contract in the frontend and backend together
+- keep UI actions aligned with server-side sanitization rules
+- test custom gateway use cases, not only default cloud providers
+
+---
+
+## 10. Known design constraints
+
+- The app assumes a local workspace root and does not allow arbitrary filesystem access.
+- Custom gateways must use OpenAI-compatible conventions or equivalent response parsing logic.
+- The terminal startup path is intentionally conservative and does not silently execute user-provided commands.
+- AI provider execution is not intended to be open-ended; it uses an allowlist and explicit fallback logic.
+
+This keeps the app predictable, secure, and easy to maintain in a local-development environment.

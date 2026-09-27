@@ -12,24 +12,37 @@
 
       <div class="apiform-nav">
         <button class="aihubbutton active" id="btnExternalApi" type="button">External API</button>
-        <button class="aihubbutton" id="btnLocalModel" type="button">Local Model</button>
+        <button class="aihubbutton" id="btnLocalModel" type="button">Local Model (Server Required)</button>
       </div>
 
       <div id="sectionExternalApi" class="apiform-section">
         <div class="apiform-group">
-          <label for="apiProviderSelect" class="apiform-label">Select company</label>
+          <label for="apiProviderSelect" class="apiform-label">Select Model</label>
           <select id="apiProviderSelect" class="apiform-select">
-            <option value="Gemini">Gemini (Google)</option>
-            <option value="Grok">Grok (xAI)</option>
-            <option value="ChatGPT">ChatGPT (OpenAI)</option>
-            <option value="Claude">Claude (Anthropic)</option>
+            <option value="Gemini">Google Gemini</option>
+            <option value="Grok">xAI</option>
+            <option value="ChatGPT">ChatGPT</option>
+            <option value="Claude">Claude</option>
             <option value="DeepSeek">DeepSeek</option>
             <option value="Mistral">Mistral AI</option>
             <option value="Cohere">Cohere</option>
             <option value="Perplexity">Perplexity AI</option>
             <option value="OpenRouter">OpenRouter</option>
-            <option value="Custom">Custom API</option>
+            <option value="Custom">Custom API Gateway</option>
           </select>
+        </div>
+
+        <div class="apiform-group">
+          <label for="apiGatewayInput" class="apiform-label">Gateway URL (optional for custom/openai-compatible
+            APIs)</label>
+          <input type="text" id="apiGatewayInput" class="apiform-input"
+            placeholder="http://localhost:1234/v1 or https://api.openai.com/v1" autocomplete="off">
+        </div>
+
+        <div class="apiform-group">
+          <label for="apiModelInput" class="apiform-label">Model Name (optional)</label>
+          <input type="text" id="apiModelInput" class="apiform-input"
+            placeholder="gpt-4o-mini, llama3, deepseek-chat..." autocomplete="off">
         </div>
 
         <div class="apiform-group">
@@ -48,12 +61,14 @@
 
       <div id="sectionLocalModel" class="apiform-section hidden">
         <div class="apiform-group">
-          <label for="localModelPathInput" class="apiform-label">Local Model File Path:</label>
+          <label for="localModelPathInput" class="apiform-label">Local Model Gateway (Server Required)</label>
           <div class="apiform-input-row">
             <input type="text" id="localModelPathInput" class="apiform-input"
               placeholder="enter file path of local ai model">
             <button type="button" class="aihubbutton-sm" id="btnBrowseLocalModel">Browse</button>
           </div>
+          <p class="apiform-desc">This feature does not run the model by itself. You must start a local AI server first.
+          </p>
         </div>
 
         <div class="apiform-btn-center">
@@ -61,6 +76,26 @@
         </div>
 
         <hr class="apiform-hr">
+
+        <div class="apiform-group">
+          <button type="button" class="aihubbutton-sm" id="localSetupToggle" aria-expanded="false">
+            How to set up?
+          </button>
+          <div id="localSetupGuide" class="hidden"
+            style="margin-top: 10px; padding: 10px 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
+            <ol style="margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45;">
+              <li>Download a local model in GGUF or other supported format.</li>
+              <li>Run a local AI server such as LM Studio, llama.cpp, or a compatible OpenAI-style backend.</li>
+              <li>Start the server on localhost, for example http://localhost:1234/v1 or http://localhost:8080/v1.</li>
+              <li>Keep the model file on disk and note the exact path.</li>
+              <li>Paste the model file path into the field above or select it with Browse.</li>
+              <li>Enter the gateway URL that your server exposes.</li>
+              <li>Use the model name your server expects, if required.</li>
+              <li>Press Load Model and then ask your question in the AI popup.</li>
+              <li>If the server is offline, the app cannot run the model by itself.</li>
+            </ol>
+          </div>
+        </div>
 
         <div class="apiform-btn-center">
           <button class="aihubbutton enlighten-btn" id="btnEnlightenMe" type="button">Enlighten Me</button>
