@@ -1,4 +1,5 @@
-# BORON CODE - v1.0.1 Stable Release 
+# BORON CODE 
+Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with Bash and CMD Fallfack, industry standard 20+ shortcuts and File Tree, custom UI, and custom syntax highlighting for each coding language. With the total file size of <20 MBs and 33 MBs or total self-cleaning runtime environment, and no electron overhead, Boron Code is made for devices with low storage.
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white) ![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white) ![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white) ![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
  
@@ -17,17 +18,17 @@
 This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or 'product'. Any similarities are purely coincidental. The author will NOT be held responsible for any forks or copies of this software which may immitate any of the above mentioned items.
 
 
-> ATTENTION: This is a brief introduction to this project, meant for onboarding and getting started. To see examples, details, project explainations and implementation, refer to [Here](workflowandcontext.md)
+> ATTENTION: This is a brief introduction to this project, meant for onboarding and getting started. To see examples, details, project explainations and implementation, refer to [Details.](workflowandcontext.md)
 
 ## FEATURES
 
-1. Monaco Editor as the IDE's code canvas and formatter
+1. Monaco Editor as the IDE's code canvas, syntax highlighter and formatter
 
-1. Sidebar and toolbar similar to popular IDEs 
+1. Sidebar and toolbar similar to popular IDEs and code editors
 
-1. Very small size and RAM footprint
+1. Very small size on drive 
 
-1. Custom indentation for each Language
+1. Custom indentation for each Language -- Indentation preservation
 
 
 ## HIGHLIGHTS
