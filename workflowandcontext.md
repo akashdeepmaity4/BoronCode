@@ -2,6 +2,28 @@
 
 This document is the working source of truth for the Boron Code project. It describes the runtime architecture, operational flow, and the engineering assumptions behind the app rather than a marketing overview.
 
+## Screenshots - Homepage, while in use, and AI Integration
+
+### Homepage - Default
+
+![landing](assets/dark-mode-default.png)
+
+### Homepage - Light Mode
+
+![landing-alt](assets/light-mode.png)
+
+### WhiLe Working - editing code
+
+![while-in-use](assets/whiLe-working.png)
+
+### AI Integration - Native Support for API as well as Local Models 
+
+![ai](assets/ai-hub-api-local.png)
+
+### AI - Multi-Provider Support
+
+![multi](assets/multiple-selections.png)
+
 ---
 
 ## 1. Project purpose

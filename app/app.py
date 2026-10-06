@@ -43,9 +43,7 @@ def resolve_workspace_path(path_str):
     if os.path.isabs(cleaned):
         candidate = os.path.abspath(cleaned)
     else:
-        normalized = cleaned.replace('\\', '/').lstrip('/').lstrip('.')
-        while normalized.startswith('/'):
-            normalized = normalized.lstrip('/')
+        normalized = cleaned.replace('\\', '/').lstrip('/')
         if not normalized:
             return ''
         candidate = os.path.abspath(os.path.join(WORKSPACE_ROOT, normalized))
@@ -148,19 +146,20 @@ def workspace_root():
 
 @app.route('/save-file', methods=['POST'])
 def save_file():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     file_path = data.get('path', '')
-    raw_content = data.get('content', '')
+    if not isinstance(file_path, str) or not file_path:
+        return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
+    if 'content' not in data or not isinstance(data['content'], str):
+        return jsonify({'status': 'error', 'message': 'File content must be text.'}), 400
 
     if is_git_restricted(file_path):
         return jsonify({'status': 'error', 'message': 'Modifying .git files is restricted.'}), 403
-    if not file_path:
-        return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
 
     file_path = resolve_workspace_path(file_path)
     if not file_path:
         return jsonify({'status': 'error', 'message': 'Invalid or out-of-workspace file path.'}), 400
-    clean_text = raw_content.replace('\xa0', ' ').replace('\u00a0', ' ')
+    clean_text = data['content'].replace('\xa0', ' ').replace('\u00a0', ' ')
 
     try:
         parent = os.path.dirname(os.path.abspath(file_path))

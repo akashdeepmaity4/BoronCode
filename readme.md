@@ -12,13 +12,17 @@ Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with B
 
 ✅ Added Anti-SQL Injection protocols on all input fields.
 
+## Preview - Dashboard 
+![landing](assets/dark-mode-default.png)
+> ATTENTION: This is a brief introduction to this project, meant for onboarding and getting started. To see examples, details, project explainations and implementation, refer to [Details.](workflowandcontext.md)
+
 
 ## Trademark and Copyright infringement prevention
 
 This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or 'product'. Any similarities are purely coincidental. The author will NOT be held responsible for any forks or copies of this software which may immitate any of the above mentioned items.
 
 
-> ATTENTION: This is a brief introduction to this project, meant for onboarding and getting started. To see examples, details, project explainations and implementation, refer to [Details.](workflowandcontext.md)
+
 
 ## FEATURES
 
@@ -90,6 +94,8 @@ pip install -r requirements.txt
 
 
 ### 1. Windows Application (Recommended for all windows users)
+
+> Note: x64 CPU Architecture is required for this build. x86 may work due to Backwards compatibility but with bugs. 
 
 1. Download the latest release from [here](https://github.com/BoronSoftware/Boron-code/releases)
 
