@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 *.exe
+*.ini
 *.dll
 *.pyd
 *.so

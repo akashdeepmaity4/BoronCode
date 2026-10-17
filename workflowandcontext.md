@@ -14,7 +14,7 @@ This document is the working source of truth for the Boron Code project. It desc
 
 ### WhiLe Working - editing code
 
-![while-in-use](assets/whiLe-working.png)
+![while-in-use](assets/while-working.png)
 
 ### AI Integration - Native Support for API as well as Local Models 
 
