@@ -19,7 +19,6 @@ app = Flask(__name__, template_folder='../templates', static_folder='../static')
 # Workspace root: one level above the app package (the project directory).
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-
 def is_git_restricted(path_str):
     """Block any path that touches a .git directory."""
     if not path_str:
@@ -167,8 +166,45 @@ def save_file():
             os.makedirs(parent, exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(clean_text)
-        return jsonify({'status': 'success', 'message': 'File saved successfully.', 'path': file_path})
+        warning = None
+        old_path = data.get('old_path')
+        if old_path:
+            if not isinstance(old_path, str) or is_git_restricted(old_path):
+                warning = 'New file was saved, but the previous file could not be removed.'
+            else:
+                old_file_path = resolve_workspace_path(old_path)
+                if not old_file_path:
+                    warning = 'New file was saved, but the previous file could not be removed.'
+                elif os.path.normcase(old_file_path) != os.path.normcase(file_path) and os.path.isfile(old_file_path):
+                    try:
+                        os.remove(old_file_path)
+                    except OSError:
+                        warning = 'New file was saved, but the previous file could not be removed.'
+        response = {'status': 'success', 'message': 'File saved successfully.', 'path': file_path}
+        if warning:
+            response['warning'] = warning
+        return jsonify(response)
     except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/delete-file', methods=['POST'])
+def delete_file():
+    data = request.get_json(silent=True) or {}
+    file_path = data.get('path', '')
+    if not isinstance(file_path, str) or not file_path:
+        return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
+    if is_git_restricted(file_path):
+        return jsonify({'status': 'error', 'message': 'Modifying .git files is restricted.'}), 403
+    resolved_path = resolve_workspace_path(file_path)
+    if not resolved_path:
+        return jsonify({'status': 'error', 'message': 'Invalid or out-of-workspace file path.'}), 400
+    if not os.path.isfile(resolved_path):
+        return jsonify({'status': 'error', 'message': 'File not found.'}), 404
+    try:
+        os.remove(resolved_path)
+        return jsonify({'status': 'success', 'message': 'File deleted successfully.'})
+    except OSError as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 

@@ -1,16 +1,10 @@
-/* =========================================================================
-   Boron Code — frontend logic
-   Monaco-only editor. No contentEditable text canvas.
-   ========================================================================= */
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
-  // --------------------------------------------------------------------- //
-  // Global active-file state (the single source of truth for the open file)
-  // --------------------------------------------------------------------- //
   const activeFile = {
-    path: null,        // absolute disk path once saved/loaded from disk; null = unsaved
-    handle: null,      // FileSystemFileHandle (browser File System Access API), else null
+    path: null,
+    handle: null,
+    handleParent: null,
     name: 'untitled.py',
     ext: 'py',
     dirty: false,
@@ -18,12 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let monacoEditor = null;
   let isMonacoReady = false;
-  let currentRootDir = null;   // opened folder name (browser) or absolute path (pywebview)
-  let ctrlKPending = false;    // state tracking for Ctrl+K -> Ctrl+O chord
+  let isApplyingEditorContent = false;
+  let autoSaveTimeout = null;
+  let currentRootDir = null;
+  let ctrlKPending = false;
 
-  // --------------------------------------------------------------------- //
-  // DOM references
-  // --------------------------------------------------------------------- //
   const el = (id) => document.getElementById(id);
   const monacoContainer = el('monacoContainer');
   const activeFileNameEl = el('activeFileName');
@@ -61,10 +54,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const GITHUB_REPO_URL = 'https://github.com/akashdeepmaity4/BoronCode/blob/main';
 
-  // --------------------------------------------------------------------- //
-  // Utilities
-  // --------------------------------------------------------------------- //
   function normalizePath(p) { return p ? p.replace(/\\/g, '/') : null; }
+
+  function setActiveDocument(path, handle, label, parentHandle = null) {
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    autoSaveTimeout = null;
+    activeFile.path = path || null;
+    activeFile.handle = handle || null;
+    activeFile.handleParent = parentHandle || null;
+    if (label) {
+      activeFile.name = label;
+      activeFile.ext = extOf(label);
+      if (activeFileNameEl) activeFileNameEl.textContent = label;
+    }
+    activeFile.dirty = false;
+  }
+
+  function triggerAutoSave() {
+    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    if (!activeFile.path && !activeFile.handle) return;
+    autoSaveTimeout = setTimeout(() => {
+      autoSaveTimeout = null;
+      saveCurrentFile(true);
+    }, 1000);
+  }
+
+  function downloadText(content, filename) {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   function extOf(name) {
     if (!name) return 'py';
@@ -96,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'open-file': openFilePicker(); break;
       case 'open-folder': openFolderPicker(); break;
       case 'save': saveCurrentFile(); break;
-      case 'save-as': saveAsFile(); break;
-      case 'save-copy-as': saveCopyAsFile(); break;
+      case 'save-as': triggerSaveAsFile(); break;
+      case 'save-copy-as': triggerSaveCopyAsFile(); break;
       case 'run-file': runCurrentFile(); break;
       case 'open-terminal': openTerminalAtActiveTarget(); break;
       case 'toggle-theme': toggleTheme(); break;
@@ -125,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Visible, persistent status toast so save/open/new results are observable.
   let toastTimer = null;
   function showStatus(message, kind) {
     let toast = el('vc-status-toast');
@@ -144,12 +166,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function flashSaveBtn() {
     if (!saveFileBtn) return;
-    const orig = saveFileBtn.style.color;
-    saveFileBtn.style.color = 'var(--success)';
-    setTimeout(() => { saveFileBtn.style.color = orig; }, 600);
+    const orig = saveFileBtn.style.backgroundColor;
+    saveFileBtn.style.backgroundColor = 'var(--success)';
+    setTimeout(() => { saveFileBtn.style.backgroundColor = orig; }, 600);
   }
 
-  // Monaco language mapping
   function getMonacoLanguage(ext) {
     const map = {
       js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript',
@@ -164,11 +185,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return map[(ext || '').toLowerCase().replace(/^\./, '')] || 'plaintext';
   }
 
-  // --------------------------------------------------------------------- //
-  // Monaco editor
-  // --------------------------------------------------------------------- //
-  // CDN candidates for Monaco's AMD loader, tried in order. The first one whose
-  // loader.js actually loaded (exposing a working `require`) wins.
   const MONACO_VERSION = '0.45.0';
   const MONACO_CDNS = [
     'https://cdn.jsdelivr.net/npm/monaco-editor@' + MONACO_VERSION + '/min/vs',
@@ -193,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loaderReady = () => typeof require !== 'undefined' && !!require.config;
     if (loaderReady()) { startMonaco(); return; }
 
-    const deadline = Date.now() + 15000; // 15s for the loader to load from a CDN
+    const deadline = Date.now() + 15000;
     const poll = setInterval(() => {
       if (loaderReady()) {
         clearInterval(poll);
@@ -229,10 +245,14 @@ document.addEventListener('DOMContentLoaded', () => {
       isMonacoReady = true;
       console.log('BoronCode: Monaco editor ready.');
 
-      monacoEditor.onDidChangeModelContent(() => { activeFile.dirty = true; });
+      monacoEditor.onDidChangeModelContent(() => {
+        if (isApplyingEditorContent) return;
+        activeFile.dirty = true;
+        triggerAutoSave();
+      });
 
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveCurrentFile());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => saveAsFile());
+      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => triggerSaveAsFile());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => handleNewFileShortcut());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyN, () => freshWindow());
       monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
@@ -246,7 +266,9 @@ document.addEventListener('DOMContentLoaded', () => {
     activeFile.name = name || activeFile.name;
     activeFile.ext = extOf(activeFile.name);
     if (monacoEditor && isMonacoReady) {
+      isApplyingEditorContent = true;
       monacoEditor.setValue(content || '');
+      isApplyingEditorContent = false;
       const model = monacoEditor.getModel();
       if (model) monaco.editor.setModelLanguage(model, getMonacoLanguage(activeFile.ext));
     }
@@ -263,11 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initMonaco();
 
-  // --------------------------------------------------------------------- //
-  // File menu & Shortcut handlers
-  // --------------------------------------------------------------------- //
-
-  // Ctrl+N implementation
   function handleNewFileShortcut() {
     if (actionNewFileBtn) {
       actionNewFileBtn.click();
@@ -307,36 +324,71 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch((err) => showStatus('Folder creation failed: ' + err, 'error'));
   }
 
-  // new-file: clear editor to an unsaved blank file. No prompt, no disk write.
   function newBlankFile() {
-    activeFile.path = null;
-    activeFile.handle = null;
-    activeFile.name = 'untitled.py';
-    activeFile.ext = 'py';
-    activeFile.dirty = false;
+    setActiveDocument(null, null, 'untitled.py');
     setEditorContent('', 'untitled.py');
     focusEditor();
     showStatus('New blank file (unsaved)');
   }
 
-  // Ctrl+Shift+N implementation: create a new folder in the active workspace root.
   function freshWindow() {
-    activeFile.path = null;
-    activeFile.handle = null;
-    activeFile.name = 'No file open';
-    activeFile.ext = '';
-    activeFile.dirty = false;
+    setActiveDocument(null, null, 'No file open');
     setEditorContent('', 'No file open');
     showStatus('Fresh window initialized');
   }
 
-  // open-file (Ctrl+O): trigger the OS file picker and load the chosen file.
-  function openFilePicker() {
+  async function openFilePicker() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_file_dialog) {
+      try {
+        const result = await window.pywebview.api.open_file_dialog();
+        if (!result) return;
+        setActiveDocument(result.path, null, result.name);
+        setEditorContent(result.content, result.name);
+        showStatus('Opened: ' + result.path);
+      } catch (err) { showStatus('Could not open file: ' + err, 'error'); }
+      return;
+    }
+    if (typeof window.showOpenFilePicker === 'function') {
+      try {
+        const [handle] = await window.showOpenFilePicker({ multiple: false });
+        if (!handle) return;
+        const file = await handle.getFile();
+        setActiveDocument(null, handle, file.name);
+        setEditorContent(await file.text(), file.name);
+        showStatus('Opened: ' + file.name);
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.error('Native file open failed:', err);
+        showStatus('Could not open file: ' + err, 'error');
+        return;
+      }
+    }
     if (filePicker) filePicker.click();
   }
 
-  // Open directory picker (Ctrl+K -> Ctrl+O / actionOpenFolderBtn)
-  function openFolderPicker() {
+  async function openFolderPicker() {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_folder_dialog) {
+      try {
+        const result = await window.pywebview.api.open_folder_dialog();
+        if (!result) return;
+        currentRootDir = result.name;
+        renderTree(result.name, buildDesktopTree(result.tree));
+      } catch (err) { showStatus('Could not open folder: ' + err, 'error'); }
+      return;
+    }
+    if (typeof window.showDirectoryPicker === 'function') {
+      try {
+        const directoryHandle = await window.showDirectoryPicker();
+        currentRootDir = directoryHandle.name;
+        renderTree(directoryHandle.name, await buildHandleTree(directoryHandle));
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.error('Native folder open failed:', err);
+        showStatus('Could not open folder: ' + err, 'error');
+      }
+      return;
+    }
     if (folderPicker) folderPicker.click();
   }
 
@@ -407,13 +459,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
-        // Browsers don't expose absolute disk paths; file.path is undefined
-        // outside pywebview/Electron. Keep path null so Ctrl+S prompts Save As.
-        activeFile.path = file.path ? normalizePath(file.path) : null;
-        activeFile.handle = null;
-        activeFile.name = file.name;
-        activeFile.ext = extOf(file.name);
-        activeFile.dirty = false;
+
+        setActiveDocument(file.path ? normalizePath(file.path) : null, null, file.name);
         setEditorContent(ev.target.result, file.name);
         showStatus(activeFile.path ? ('Opened: ' + activeFile.path) : ('Opened: ' + file.name + ' (unsaved — Save As to write to disk)'));
       };
@@ -422,29 +469,40 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // save (Ctrl+S): overwrite the active file in place if it has a path/handle.
-  // Bypass the prompt unless the file is untitled (then fall through to Save As).
-  async function saveCurrentFile() {
+  async function saveCurrentFile(isAutoSave = false) {
     const content = getEditorContent();
 
-    // 1. File System Access API handle (browser mode with granted handle)
+    if (activeFile.path && window.pywebview && window.pywebview.api && window.pywebview.api.write_file) {
+      try {
+        const result = await window.pywebview.api.write_file(activeFile.path, content);
+        if (result.status !== 'success') throw new Error(result.message || 'Save failed.');
+        activeFile.dirty = false;
+        if (!isAutoSave) flashSaveBtn();
+        return;
+      } catch (err) {
+        console.error('Desktop save failed:', err);
+        if (!isAutoSave) showStatus('Save failed: ' + err, 'error');
+        return;
+      }
+    }
+
     if (activeFile.handle) {
       try {
         const writable = await activeFile.handle.createWritable();
         await writable.write(content);
         await writable.close();
         activeFile.dirty = false;
-        flashSaveBtn();
-        showStatus('Saved: ' + activeFile.name);
+        if (!isAutoSave) flashSaveBtn();
         return;
       } catch (err) {
         console.error('Save via handle failed:', err);
-        showStatus('Save failed: ' + err, 'error');
-        return;
+        if (!activeFile.path) {
+          if (!isAutoSave) showStatus('Save failed: ' + err, 'error');
+          return;
+        }
       }
     }
 
-    // 2. Backend save by absolute path (pywebview or localhost server)
     if (activeFile.path) {
       try {
         const res = await fetch('/save-file', {
@@ -454,30 +512,77 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const data = await handleJsonResponse(res);
         if (data.status === 'success') {
-          if (data.path) activeFile.path = data.path; // backend may anchor/normalize
+          if (data.path) activeFile.path = data.path;
           activeFile.dirty = false;
-          flashSaveBtn();
-          showStatus('Saved: ' + activeFile.path);
+          if (!isAutoSave) flashSaveBtn();
         } else {
-          showStatus('Save failed: ' + data.message, 'error');
+          if (isAutoSave) console.error('Autosave failed:', data.message);
+          else showStatus('Save failed: ' + data.message, 'error');
         }
       } catch (err) {
         console.error('Save failed:', err);
-        showStatus('Save failed: ' + err, 'error');
+        if (!isAutoSave) showStatus('Save failed: ' + err, 'error');
       }
       return;
     }
 
-    // 3. Untitled: prompt for a name via Save As
-    saveAsFile();
+    if (!isAutoSave) triggerSaveAsFile();
   }
 
-  // save-as (Ctrl+Shift+S): prompt() for a filename, save directly to the
-  // workspace root directory without nested paths.
-  async function saveAsFile() {
+  async function triggerSaveAsFile() {
+    const previousPath = activeFile.path;
+    const previousHandle = activeFile.handle;
+    const previousParentHandle = activeFile.handleParent;
     const content = getEditorContent();
     const defaultName = (activeFile.name && activeFile.name !== 'No file open')
       ? activeFile.name : 'untitled.' + (activeFile.ext || 'py');
+
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file_dialog) {
+      const destination = await window.pywebview.api.save_file_dialog(defaultName);
+      if (!destination) return;
+      const result = await window.pywebview.api.write_file(destination, content);
+      if (result.status !== 'success') {
+        showStatus('Save As failed: ' + result.message, 'error');
+        return;
+      }
+      if (previousPath && previousPath !== destination && window.pywebview.api.delete_file) {
+        const removed = await window.pywebview.api.delete_file(previousPath);
+        if (removed.status !== 'success') console.warn('Saved new file but could not remove old file:', removed.message);
+      }
+      setActiveDocument(destination, null, destination.split(/[\\/]/).pop());
+      flashSaveBtn();
+      showStatus('Saved: ' + destination);
+      return;
+    }
+    if (typeof window.showSaveFilePicker === 'function') {
+      try {
+        const handle = await window.showSaveFilePicker({ suggestedName: defaultName });
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        if (previousHandle && previousHandle !== handle) {
+          try {
+            if (typeof previousHandle.remove === 'function') await previousHandle.remove();
+            else if (previousParentHandle && previousHandle.name) await previousParentHandle.removeEntry(previousHandle.name);
+          } catch (removeErr) { console.warn('Saved new file but could not remove old file:', removeErr); }
+        } else if (previousPath) {
+          try {
+            await fetch('/delete-file', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ path: previousPath })
+            });
+          } catch (removeErr) { console.warn('Saved new file but could not remove old file:', removeErr); }
+        }
+        setActiveDocument(null, handle, handle.name || defaultName);
+        flashSaveBtn();
+        showStatus('Saved: ' + activeFile.name);
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.error('Save As picker failed:', err);
+        showStatus('Save picker unavailable; using fallback destination.', 'warn');
+      }
+    }
 
     let namePrompt = null;
     try { namePrompt = prompt('Save file as:', defaultName); }
@@ -486,32 +591,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (namePrompt === null) { showStatus('Save As cancelled (prompt blocked or dismissed).', 'warn'); return }
     if (!namePrompt.trim()) return;
 
-    // Flatten: strip any directory separators so the name is root-level only.
-    const cleanName = namePrompt.trim().replace(/[\\/]+/g, '');
-    if (!cleanName) { showStatus('Invalid file name.', 'error'); return; }
+    const cleanName = namePrompt.trim().replace(/\\/g, '/');
+    if (!cleanName || cleanName.startsWith('/') || /^[A-Za-z]:/.test(cleanName)
+      || cleanName.split('/').some(part => !part || part === '.' || part === '..')) {
+      showStatus('Invalid file path.', 'error');
+      return;
+    }
 
-    // Send a bare name; the backend anchors it to the workspace root. If a
-    // folder is open (currentRootDir), prefer that as the root.
     const targetPath = currentRootDir ? normalizePath(currentRootDir + '/' + cleanName) : cleanName;
 
     try {
       const res = await fetch('/save-file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: targetPath, content })
+        body: JSON.stringify({ path: targetPath, content, old_path: previousPath })
       });
       const data = await handleJsonResponse(res);
       if (data.status === 'success') {
-        activeFile.path = data.path || targetPath;   // store absolute path for later Ctrl+S
-        activeFile.handle = null;
-        activeFile.name = cleanName;
-        activeFile.ext = extOf(cleanName);
-        activeFile.dirty = false;
-        if (activeFileNameEl) activeFileNameEl.textContent = cleanName;
+        let warning = data.warning || '';
+        if (previousHandle) {
+          try {
+            if (typeof previousHandle.remove === 'function') await previousHandle.remove();
+            else if (previousParentHandle && previousHandle.name) await previousParentHandle.removeEntry(previousHandle.name);
+            else warning = warning || 'New file was saved, but the previous file could not be removed.';
+          } catch (removeErr) {
+            console.warn('Saved new file but could not remove old file:', removeErr);
+            warning = warning || 'New file was saved, but the previous file could not be removed.';
+          }
+        }
+        setActiveDocument(data.path || targetPath, null, cleanName);
         flashSaveBtn();
-        showStatus('Saved: ' + activeFile.path);
+        if (warning) showStatus(warning, 'warn');
       } else {
-        showStatus('Save failed: ' + data.message, 'error');
+        downloadText(content, cleanName);
+        showStatus('Backend save failed; downloaded a copy instead: ' + data.message, 'warn');
       }
     } catch (err) {
       console.error('Save As failed:', err);
@@ -519,33 +632,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // save-copy-as (Alt+Shift+S): save a copy without changing the active file.
-  async function saveCopyAsFile() {
+  async function triggerSaveCopyAsFile() {
     const content = getEditorContent();
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file_dialog) {
+      const destination = await window.pywebview.api.save_file_dialog('copy_' + (activeFile.name || 'untitled.txt'));
+      if (!destination) return;
+      const result = await window.pywebview.api.write_file(destination, content);
+      if (result.status === 'success') showStatus('Copy saved: ' + destination);
+      else showStatus('Save copy failed: ' + result.message, 'error');
+      return;
+    }
     const defaultName = 'copy_' + (activeFile.name || 'untitled.' + (activeFile.ext || 'py'));
     let namePrompt = null;
     try { namePrompt = prompt('Save copy as:', defaultName); } catch (e) { }
     if (!namePrompt || !namePrompt.trim()) return;
     const cleanName = namePrompt.trim().replace(/[\\/]+/g, '');
     if (!cleanName) { showStatus('Invalid file name.', 'error'); return; }
-    const targetPath = currentRootDir ? normalizePath(currentRootDir + '/' + cleanName) : cleanName;
-    try {
-      const res = await fetch('/save-file', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: targetPath, content })
-      });
-      const data = await handleJsonResponse(res);
-      if (data.status === 'success') showStatus('Copy saved: ' + (data.path || targetPath));
-      else showStatus('Save copy failed: ' + data.message, 'error');
-    } catch (err) {
-      showStatus('Save copy failed: ' + err, 'error');
-    }
+    downloadText(content, cleanName);
+    showStatus('Downloaded copy: ' + cleanName);
   }
 
-  // --------------------------------------------------------------------- //
-  // Dropdown menus
-  // --------------------------------------------------------------------- //
   function closeAllDropdowns() {
     document.querySelectorAll('.app-dropdown-menu').forEach(m => m.classList.add('hidden'));
     document.querySelectorAll('.menu-dropdown-container').forEach(c => c.classList.remove('active'));
@@ -655,9 +761,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'C:/';
   }
 
-  // --------------------------------------------------------------------- //
-  // Keyboard shortcuts (document-level; intercepts all standard keybindings)
-  // --------------------------------------------------------------------- //
   document.addEventListener('keydown', (e) => {
     const isCtrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
@@ -716,14 +819,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ctrl + Shift + S: Save As
     if (isCtrl && e.shiftKey && key === 's') {
       e.preventDefault();
-      saveAsFile();
+      triggerSaveAsFile();
       return;
     }
 
     // Alt + Shift + S: Save copy as
     if (e.altKey && e.shiftKey && key === 's') {
       e.preventDefault();
-      saveCopyAsFile();
+      triggerSaveCopyAsFile();
       return;
     }
 
@@ -776,18 +879,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --------------------------------------------------------------------- //
-  // Toolbar buttons
-  // --------------------------------------------------------------------- //
   if (saveFileBtn) saveFileBtn.addEventListener('click', () => saveCurrentFile());
 
   if (runFileBtn) {
     runFileBtn.addEventListener('click', () => routeUIAction('run-file'));
   }
 
-  // --------------------------------------------------------------------- //
-  // Sidebar
-  // --------------------------------------------------------------------- //
   if (notesToggleBtn) notesToggleBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
   if (logoBtn) logoBtn.addEventListener('click', () => sidebar.classList.remove('collapsed'));
   if (actionNewFileBtn) actionNewFileBtn.addEventListener('click', () => routeUIAction('new-file'));
@@ -816,6 +913,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  async function buildHandleTree(directoryHandle, parentHandle = null) {
+    const tree = {};
+    for await (const [name, handle] of directoryHandle.entries()) {
+      if (name === '.git') continue;
+      if (handle.kind === 'directory') {
+        tree[name] = { __type__: 'dir', children: await buildHandleTree(handle, directoryHandle) };
+      } else {
+        tree[name] = { __type__: 'file', fileHandle: handle, parentHandle: directoryHandle || parentHandle };
+      }
+    }
+    return tree;
+  }
+
+  function buildDesktopTree(source) {
+    const tree = {};
+    Object.keys(source || {}).forEach(name => {
+      const value = source[name];
+      if (value && value.__desktop_path__) {
+        tree[name] = { __type__: 'file', desktopPath: value.__desktop_path__ };
+      } else {
+        tree[name] = { __type__: 'dir', children: buildDesktopTree(value) };
+      }
+    });
+    return tree;
+  }
+
   function renderTree(rootName, treeData) {
     if (!treeView) return;
     treeView.replaceChildren();
@@ -836,14 +959,27 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.textContent = '\u{1F4C4} ' + key;
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
+          if (node.fileHandle) {
+            node.fileHandle.getFile().then(file => file.text()).then(content => {
+              setActiveDocument(null, node.fileHandle, key, node.parentHandle);
+              setEditorContent(content, key);
+              showStatus('Opened: ' + key);
+            }).catch(err => showStatus('Could not read file: ' + err, 'error'));
+            return;
+          }
+          if (node.desktopPath && window.pywebview && window.pywebview.api && window.pywebview.api.read_file) {
+            window.pywebview.api.read_file(node.desktopPath).then(result => {
+              if (result.status !== 'success') throw new Error(result.message || 'Could not read file.');
+              setActiveDocument(node.desktopPath, null, key);
+              setEditorContent(result.content, key);
+              showStatus('Opened: ' + node.desktopPath);
+            }).catch(err => showStatus('Could not read file: ' + err, 'error'));
+            return;
+          }
           const reader = new FileReader();
           reader.onload = (ev) => {
             const pathVal = node.fileObj ? (node.fileObj.path || node.fileObj.webkitRelativePath) : null;
-            activeFile.path = pathVal ? normalizePath(pathVal) : null;
-            activeFile.handle = null;
-            activeFile.name = key;
-            activeFile.ext = extOf(key);
-            activeFile.dirty = false;
+            setActiveDocument(pathVal ? normalizePath(pathVal) : null, null, key);
             setEditorContent(ev.target.result, key);
             showStatus('Opened: ' + (activeFile.path || key));
           };
@@ -871,7 +1007,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-  // (apiform.html) - floating popup
 
   const aiModalBtn = el('aiModalBtn');
   const apiformOverlay = el('apiformOverlay');
@@ -1135,7 +1270,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') { e.preventDefault(); sendAiPrompt(); }
   });
 
-  // Set default view-menu labels
   if (themeStatusText) themeStatusText.textContent = 'Enable Light Mode';
   if (linesStatusText) linesStatusText.textContent = 'Hide Line Numbers';
 
