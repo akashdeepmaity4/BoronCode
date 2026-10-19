@@ -101,10 +101,6 @@ pip install -r requirements.txt
 1. Download the latest release from [here](https://github.com/BoronSoftware/Boron-code/releases)
 
 
-(comming soon...)
-
-
-
 ### 2. Progressive Webapp (Recommended for Linux / Mac users)
 
 1. Download the codebase.
@@ -115,6 +111,7 @@ pip install -r requirements.txt
 
 4. run 'launcher.py' to launch the PWA (entire codebase should be downloaded to prevent any errors)
 
+> NOTE : Standalone for Linux / Mac coming soon ...
 
 ```
 
