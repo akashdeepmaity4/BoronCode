@@ -98,7 +98,7 @@ pip install -r requirements.txt
 
 > Note: x64 CPU Architecture is required for this build. x86 may work due to Backwards compatibility but with bugs. 
 
-1. Download the latest release from [here](https://github.com/BoronSoftware/Boron-code/releases)
+1. Download the latest release from [here](https://github.com/akashdeepmaity4/BoronCode/releases/tag/v1.0.0)
 
 
 ### 2. Progressive Webapp (Recommended for Linux / Mac users)
