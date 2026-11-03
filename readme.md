@@ -1,10 +1,10 @@
 # BORON CODE 
 
-Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with Bash and CMD Fallfack, industry standard 20+ shortcuts and File Tree, custom UI, and custom syntax highlighting for each coding language. With the total file size of <20 MBs and 33 MBs or total self-cleaning runtime environment, and no electron overhead, Boron Code is made for devices with low storage.
+Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with Bash and CMD Fallfack, industry standard 20+ shortcuts and File Tree, custom UI, and custom syntax highlighting for each coding language. With the total file size of <20 MBs and 33 MBs of total self-cleaning runtime environment, and no electron overhead, Boron Code is made for devices with low storage.
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white) ![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white) ![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white) ![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
  
-## WHAT'S NEW 🚀
+## WHAT'S NEW !!
 ![License](https://img.shields.io/badge/license-MIT-blue) ![Version](https://img.shields.io/badge/version-1.0.1-brightgreen) ![ParentProduct](https://img.shields.io/badge/aBoronSuiteProduct-yellow)
 
 ✅ Implemented a native Chat Window to use AI locally or via an API* (Under testing)
@@ -98,11 +98,7 @@ pip install -r requirements.txt
 
 > Note: x64 CPU Architecture is required for this build. x86 may work due to Backwards compatibility but with bugs. 
 
-1. Download the latest release from [here](https://github.com/BoronSoftware/Boron-code/releases)
-
-
-(comming soon...)
-
+1. Download the latest release from [here](https://github.com/akashdeepmaity4/BoronCode/releases/tag/v1.0.0)
 
 
 ### 2. Progressive Webapp (Recommended for Linux / Mac users)
@@ -115,6 +111,7 @@ pip install -r requirements.txt
 
 4. run 'launcher.py' to launch the PWA (entire codebase should be downloaded to prevent any errors)
 
+> NOTE : Standalone for Linux / Mac coming soon ...
 
 ```
 
