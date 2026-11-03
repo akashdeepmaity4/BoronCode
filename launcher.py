@@ -112,8 +112,8 @@ if __name__ == "__main__":
     webview.create_window(
         title="Boron Code",
         url=app,
-        width=1200,
-        height=800,
+        width=1920,
+        height=1080,
         resizable=True,
         js_api=DesktopFileApi(),
     )
