@@ -3,6 +3,7 @@ Run directly for browser/localhost use:
     python app/app.py
 Or via launcher.py for the pywebview desktop window.
 """
+
 from flask import Flask, render_template, request, jsonify
 import os
 import re
@@ -16,7 +17,6 @@ import json
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
-# Workspace root: one level above the app package (the project directory).
 WORKSPACE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 def is_git_restricted(path_str):
@@ -29,15 +29,8 @@ def is_git_restricted(path_str):
 
 
 def resolve_workspace_path(path_str):
-    """Anchor a relative path to the workspace root.
-
-    Anti-traversal: the resolved absolute path must stay inside
-    WORKSPACE_ROOT. Any attempt to escape with '..' or an absolute path is
-    rejected by returning an empty string, which callers treat as invalid.
-    """
     if not path_str:
         return ''
-    # Strip NUL bytes and control chars that can fool path checks.
     cleaned = ''.join(c for c in str(path_str) if c not in '\x00\r\n')
     if os.path.isabs(cleaned):
         candidate = os.path.abspath(cleaned)
@@ -46,7 +39,6 @@ def resolve_workspace_path(path_str):
         if not normalized:
             return ''
         candidate = os.path.abspath(os.path.join(WORKSPACE_ROOT, normalized))
-    # Containment check: refuse anything that resolves outside the workspace.
     if not (candidate == WORKSPACE_ROOT or candidate.startswith(WORKSPACE_ROOT + os.sep)):
         return ''
     return candidate
@@ -59,7 +51,6 @@ def sanitize_str(val):
 
 
 def normalize_gateway_url(gateway_url):
-    """Normalize a local/custom gateway URL to its base root."""
     if not gateway_url:
         return ''
     cleaned = html.unescape(str(gateway_url)).strip()
@@ -79,7 +70,6 @@ def normalize_gateway_url(gateway_url):
 
 
 def build_openai_compatible_url(gateway_url):
-    """Return the OpenAI-compatible chat completions endpoint for a gateway."""
     if not gateway_url:
         return ''
     cleaned = html.unescape(str(gateway_url)).strip()
@@ -100,8 +90,6 @@ def build_openai_compatible_url(gateway_url):
     return f'{base}/v1/chat/completions'
 
 
-# Allowed filename characters: letters, digits, dash, underscore, dot, and a
-# single path separator. Rejects shell metacharacters and traversal segments.
 _SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9_\-./]+\.[A-Za-z0-9_\-]+$')
 
 
@@ -121,9 +109,6 @@ def is_safe_relative_path(path_str):
     return True
 
 
-# --------------------------------------------------------------------------- #
-# Pages
-# --------------------------------------------------------------------------- #
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -135,9 +120,6 @@ def apiform():
     return render_template('apiform.html')
 
 
-# --------------------------------------------------------------------------- #
-# File operations
-# --------------------------------------------------------------------------- #
 @app.route('/workspace-root', methods=['GET'])
 def workspace_root():
     return jsonify({'status': 'success', 'root': WORKSPACE_ROOT})
@@ -290,10 +272,6 @@ def run_file():
     if not file_path:
         return jsonify({'status': 'error', 'message': 'File path is required.'}), 400
 
-    # Anti-command-injection: only allow safe relative paths, then anchor and
-    # verify containment inside the workspace. The path is never passed through
-    # a shell (subprocess.run uses a list, shell=False), and we additionally
-    # reject any shell metacharacters in the raw input.
     if not is_safe_relative_path(file_path):
         return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
 
@@ -308,7 +286,6 @@ def run_file():
         return jsonify({'status': 'error', 'message': f'Execution for .{ext} files is not supported.'}), 400
 
     try:
-        # shell=False + list args => no shell interpretation of the path.
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=False)
         return jsonify({'status': 'success', 'stdout': result.stdout, 'stderr': result.stderr})
     except Exception as e:
@@ -377,7 +354,6 @@ def resolve_terminal_directory(requested_cwd=None):
 
 
 def resolve_terminal_command():
-    """Pick the best available terminal in the intended fallback order."""
     bash_path = shutil.which('bash')
     if bash_path:
         return [bash_path]
@@ -406,28 +382,20 @@ def open_terminal():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-# --------------------------------------------------------------------------- #
-# AI providers
-# --------------------------------------------------------------------------- #
 def call_external_ai_api(provider, api_key, prompt, code_context="", gateway_url="", model_name=""):
     full_prompt = prompt
     if code_context:
         full_prompt = f"Code Context:\n```\n{code_context}\n```\n\nUser Prompt:\n{prompt}"
 
-    # Anti-injection: validate provider against an allowlist of known names and
-    # strip anything that could break out of a URL path or HTTP header. The API
-    # key is stripped of CR/LF and header separators to prevent header injection.
     ALLOWED_PROVIDERS = {
         'chatgpt', 'openai', 'grok', 'deepseek', 'mistral', 'openrouter',
         'perplexity', 'gemini', 'google', 'claude', 'anthropic', 'cohere', 'custom', 'gateway'
     }
     provider_clean = html.unescape(provider).lower().strip()
-    # Keep only alnum/dash/space; collapse to a safe token.
     provider_clean = ''.join(c if c.isalnum() or c in '- ' else '' for c in provider_clean).strip()
     if 'custom' in provider_clean or 'gateway' in provider_clean:
         provider_clean = 'custom'
     elif provider_clean not in ALLOWED_PROVIDERS:
-        # Fall back to a safe default rather than trusting arbitrary input.
         provider_clean = 'custom'
 
     api_key_clean = html.unescape(api_key).strip()
@@ -655,9 +623,6 @@ def call_local_ai_model(model_path, prompt, code_context="", gateway_url=""):
     return (f"[Local Model Error] Could not connect to a local model gateway at localhost ports 11434/1234/8080/8081/8000/3000 or locate file at '{model_path_clean}'.")
 
 
-# --------------------------------------------------------------------------- #
-# AI routes
-# --------------------------------------------------------------------------- #
 @app.route('/api/verify-external-api', methods=['POST'])
 def verify_external_api():
     data = request.get_json() or {}
@@ -772,9 +737,6 @@ def ai_chat():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-# --------------------------------------------------------------------------- #
-# Error handlers
-# --------------------------------------------------------------------------- #
 @app.errorhandler(404)
 def not_found_error(error):
     return jsonify({'status': 'error', 'message': 'Route not found (404).'}), 404
