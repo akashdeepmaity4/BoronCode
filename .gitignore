@@ -1,6 +1,5 @@
 .env
 .env.*
-!.env.example
 *.exe
 *.ini
 *.dll
@@ -18,7 +17,10 @@ htmlcov/
 .dist/
 build/
 .venv/
+*.exe
+*.sh
 venv/
+dist/
 env/
 node_modules/
 *.spec
