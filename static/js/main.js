@@ -439,11 +439,11 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => showStatus('Run failed: ' + err, 'error'));
   }
 
-  function openTerminalAtActiveTarget() {
+  function openTerminalAtActiveTarget(terminalInput = '') {
     fetch('/open-terminal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cwd: getTerminalTargetCwd() })
+      body: JSON.stringify({ cwd: getTerminalTargetCwd(), input: terminalInput })
     })
       .then(res => res.json())
       .then(data => {
@@ -1049,13 +1049,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (aiModalBtn) {
     aiModalBtn.addEventListener('click', (e) => {
-      if (e.shiftKey) { if (apiformOverlay) apiformOverlay.classList.remove('hidden'); return; }
-      if (isAiConfigured && aiFloatingPopup) {
-        if (aiFloatingPopup.classList.contains('hidden')) aiFloatingPopup.classList.remove('hidden');
-        else if (apiformOverlay) apiformOverlay.classList.remove('hidden');
-      } else if (apiformOverlay) {
-        apiformOverlay.classList.remove('hidden');
+      e.preventDefault();
+      if (activeFileNameEl.textContent === 'No file open' || activeFile.ext !== 'py') {
+        showStatus('no python interpreter found', 'error');
+        return;
       }
+      openTerminalAtActiveTarget('python "' + activeFile.name + '"');
     });
   }
   if (apiFormCloseBtn && apiformOverlay) apiFormCloseBtn.addEventListener('click', () => apiformOverlay.classList.add('hidden'));

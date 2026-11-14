@@ -10,6 +10,7 @@ import re
 import subprocess
 import shutil
 import html
+import time
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -375,7 +376,24 @@ def open_terminal():
         data = request.get_json(silent=True) or {}
         cwd = resolve_terminal_directory(data.get('cwd'))
         command = resolve_terminal_command()
-        subprocess.Popen(command, cwd=cwd)
+        terminal_input = data.get('input')
+        if terminal_input and os.name == 'nt':
+            if not isinstance(terminal_input, str) or not re.fullmatch(r'python "[^"\r\n]+\.py"', terminal_input, re.IGNORECASE):
+                return jsonify({'status': 'error', 'message': 'Invalid terminal input.'}), 400
+            if command[:3] == ['cmd.exe', '/c', 'start']:
+                command = ['cmd.exe']
+            subprocess.Popen(command, cwd=cwd, creationflags=subprocess.CREATE_NEW_CONSOLE)
+            subprocess.run(['clip.exe'], input=terminal_input, text=True, check=True,
+                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+            time.sleep(0.8)
+            import ctypes
+            user32 = ctypes.windll.user32
+            user32.keybd_event(0x11, 0, 0, 0)
+            user32.keybd_event(0x56, 0, 0, 0)
+            user32.keybd_event(0x56, 0, 2, 0)
+            user32.keybd_event(0x11, 0, 2, 0)
+        else:
+            subprocess.Popen(command, cwd=cwd)
         shell_name = command[0].split(os.sep)[-1] if command and command[0] else 'terminal'
         return jsonify({'status': 'success', 'message': 'Terminal opened successfully.', 'shell': shell_name, 'path': cwd})
     except Exception as e:
