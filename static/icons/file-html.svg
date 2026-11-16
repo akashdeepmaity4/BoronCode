@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
-  <path d="M7 2.5h7l5 5v12.5A2.5 2.5 0 0 1 16.5 22.5h-9A2.5 2.5 0 0 1 5 20V5A2.5 2.5 0 0 1 7 2.5Z" fill="#dfe3e8" fill-opacity="0.2" stroke="#c4c4c4" stroke-width="1.2"/>
-  <path d="M9 9.6h6M9 12.8h6M9 16h4" stroke="#d7d7d7" stroke-width="1.4" stroke-linecap="round"/>
-  <text x="12" y="17" text-anchor="middle" font-size="6" font-family="Segoe UI, sans-serif" font-weight="700" fill="#ffb36b">&lt;/&gt;</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="120" height="140"><path d="M24 10h52l28 28v84c0 4.4-3.6 8-8 8H24c-4.4 0-8-3.6-8-8V18c0-4.4 3.6-8 8-8Z" fill="#fff" stroke="#cfd6dc" stroke-width="4" stroke-linejoin="round"/><path fill="#eef1f4" d="M76 38h28v16z"/><path d="M76 10v20c0 4.4 3.6 8 8 8h20Z" fill="#cfd6dc" stroke="#a6b1ba" stroke-width="4" stroke-linejoin="round"/><rect x="8" y="54" width="104" height="36" rx="4" fill="#e34f26"/><path d="M26 64h4v7h7.5v-7h4v18h-4v-7.5H30V82h-4Zm18.5 0h14v3.4h-5.1V82h-3.8V67.4h-5.1Zm17 0h4.7l4.4 11.8L75 64h4.7v18h-3.6V69.6l-4.2 10.9h-2.6l-4.2-10.9V82h-3.6Zm22 0h4v14.6h8V82h-12Z" fill="#fff"/><path d="m46 104-10 7 10 7m17-17-6 20m17-17 10 7-10 7" fill="none" stroke="#37434d" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

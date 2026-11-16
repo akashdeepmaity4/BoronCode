@@ -942,9 +942,38 @@ document.addEventListener('DOMContentLoaded', () => {
     treeView.replaceChildren();
     const root = document.createElement('button');
     root.className = 'tree-folder';
-    root.textContent = '^ ' + rootName;
+    root.append(document.createTextNode('^ '));
+    appendTreeIcon(root, 'folder.svg', 'Folder');
+    root.append(document.createTextNode(rootName));
     treeView.appendChild(root);
     treeView.appendChild(buildTreeNodes(treeData));
+  }
+
+  function appendTreeIcon(button, iconName, label) {
+    const icon = document.createElement('img');
+    icon.className = 'tree-icon';
+    icon.src = '/static/icons/' + iconName;
+    icon.alt = '';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.title = label;
+    button.appendChild(icon);
+  }
+
+  function fileIconForName(fileName) {
+    const extension = fileName.split('.').pop().toLowerCase();
+    const icons = {
+      yaml: 'file-yaml.svg', yml: 'file-yaml.svg',
+      xml: 'file-xml.svg',
+      ts: 'file-ts.svg', tsx: 'file-ts.svg',
+      txt: 'file-text.svg',
+      py: 'file-python.svg',
+      md: 'file-markdown.svg', markdown: 'file-markdown.svg',
+      json: 'file-json.svg',
+      js: 'file-js.svg', mjs: 'file-js.svg', cjs: 'file-js.svg',
+      html: 'file-html.svg', htm: 'file-html.svg',
+      css: 'file-css.svg'
+    };
+    return icons[extension] || 'file-generic.svg';
   }
 
   function buildTreeNodes(nodeObj) {
@@ -954,7 +983,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (node.__type__ === 'file') {
         const btn = document.createElement('button');
         btn.className = 'tree-file';
-        btn.textContent = '\u{1F4C4} ' + key;
+        appendTreeIcon(btn, fileIconForName(key), key + ' file');
+        btn.append(document.createTextNode(key));
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (node.fileHandle) {
@@ -987,14 +1017,19 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (node.__type__ === 'dir') {
         const fb = document.createElement('button');
         fb.className = 'tree-folder';
-        fb.textContent = '^ ' + key;
+        const caret = document.createElement('span');
+        caret.textContent = '^ ';
+        fb.appendChild(caret);
+        appendTreeIcon(fb, 'folder.svg', 'Folder');
+        fb.append(document.createTextNode(key));
         const kids = buildTreeNodes(node.children);
         kids.style.display = 'block';
         fb.addEventListener('click', (e) => {
           e.stopPropagation();
           const hidden = kids.style.display === 'none';
           kids.style.display = hidden ? 'block' : 'none';
-          fb.textContent = (hidden ? '^' : 'v') + ' ' + key;
+          caret.textContent = (hidden ? '^ ' : 'v ');
+          fb.setAttribute('aria-expanded', String(hidden));
         });
         container.appendChild(fb);
         container.appendChild(kids);
