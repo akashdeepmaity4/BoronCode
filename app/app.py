@@ -5,10 +5,12 @@ Or via launcher.py for the pywebview desktop window.
 """
 
 from flask import Flask, render_template, request, jsonify
+import glob
 import os
 import re
 import subprocess
 import shutil
+import sys
 import html
 import time
 import urllib.request
@@ -273,6 +275,53 @@ def list_workspace():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+def find_python_interpreter():
+    if not getattr(sys, 'frozen', False) and os.path.isfile(sys.executable):
+        return sys.executable
+
+    for command in ('python', 'python3', 'py'):
+        interpreter = shutil.which(command)
+        if interpreter and 'windowsapps' not in interpreter.lower():
+            return interpreter
+
+    if os.name == 'nt':
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetLogicalDrives.restype = ctypes.c_uint32
+        kernel32.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
+        kernel32.GetDriveTypeW.restype = ctypes.c_uint
+        drive_mask = kernel32.GetLogicalDrives()
+        distributions = ('Anaconda3', 'Miniconda3', 'Miniforge3', 'Mambaforge')
+        patterns = (
+            'Python*/python.exe',
+            'Program Files/Python*/python.exe',
+            'Program Files (x86)/Python*/python.exe',
+            'Users/*/AppData/Local/Programs/Python/Python*/python.exe',
+        )
+        for index in range(26):
+            if not drive_mask & (1 << index):
+                continue
+            drive = f'{chr(ord("A") + index)}:\\'
+            if kernel32.GetDriveTypeW(drive) not in (2, 3):
+                continue
+            for pattern in patterns:
+                matches = glob.glob(os.path.join(drive, pattern))
+                if matches:
+                    return sorted(matches, reverse=True)[0]
+            for distribution in distributions:
+                candidates = (
+                    os.path.join(drive, distribution, 'python.exe'),
+                    os.path.join(drive, 'Users', '*', distribution, 'python.exe'),
+                )
+                for candidate_pattern in candidates:
+                    matches = glob.glob(candidate_pattern)
+                    if matches:
+                        return matches[0]
+
+    return None
+
+
 @app.route('/run-file', methods=['POST'])
 def run_file():
     data = request.get_json() or {}
@@ -285,20 +334,35 @@ def run_file():
         return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
 
     resolved = resolve_workspace_path(file_path)
-    if not resolved or not os.path.exists(resolved):
-        return jsonify({'status': 'error', 'message': 'File does not exist on disk.'}), 400
 
     ext = resolved.rsplit('.', 1)[-1].lower() if '.' in resolved else ''
-    runners = {'py': ['python', resolved], 'js': ['node', resolved], 'sh': ['bash', resolved]}
+    warning = None
+    runners = {'js': ['node', resolved], 'sh': ['bash', resolved]}
+    if ext == 'py':
+        interpreter = find_python_interpreter()
+        if interpreter:
+            runners['py'] = [interpreter, resolved]
+        elif getattr(sys, 'frozen', False):
+            runners['py'] = [sys.executable, '--boron-run-python', resolved]
+            warning = 'Python interpreter not on disk. Running fallback.'
+        else:
+            return jsonify({'status': 'error', 'message': 'Python interpreter could not be found.'}), 500
+
     cmd = runners.get(ext)
     if not cmd:
         return jsonify({'status': 'error', 'message': f'Execution for .{ext} files is not supported.'}), 400
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=False)
-        return jsonify({'status': 'success', 'stdout': result.stdout, 'stderr': result.stderr})
+        response = {'status': 'success', 'stdout': result.stdout, 'stderr': result.stderr}
+        if warning:
+            response['warning'] = warning
+        return jsonify(response)
     except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        response = {'status': 'error', 'message': str(e)}
+        if warning:
+            response['warning'] = warning
+        return jsonify(response), 500
 
 
 def get_common_git_bash_candidates():

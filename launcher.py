@@ -1,9 +1,19 @@
 import os
 import sys
-import threading
-import webview
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == '--boron-run-python':
+    import runpy
+
+    script_path = os.path.abspath(sys.argv[2])
+    sys.argv = [script_path]
+    sys.path.insert(0, os.path.dirname(script_path))
+    runpy.run_path(script_path, run_name='__main__')
+    sys.exit(0)
+
+import threading
+import webview
 
 try:
     from app.app import app

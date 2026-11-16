@@ -430,8 +430,9 @@ document.addEventListener('DOMContentLoaded', () => {
     })
       .then(handleJsonResponse)
       .then(data => {
-        if (data.status === 'error') showStatus('Execution error: ' + data.message, 'error');
-        else alert(data.stdout || data.stderr || 'Execution completed with no output.');
+        const warning = data.warning ? data.warning + '\n\n' : '';
+        if (data.status === 'error') showStatus(warning + 'Execution error: ' + data.message, 'error');
+        else alert(warning + (data.stdout || data.stderr || 'Execution completed with no output.'));
       })
       .catch(err => showStatus('Run failed: ' + err, 'error'));
   }
@@ -1039,9 +1040,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const aiPopupInput = el('aiPopupInput');
   const aiPopupSendBtn = el('aiPopupSendBtn');
 
+  let isAiConfigured = false;
   let activeAiProvider = 'AI Assistant';
   let activeAiKey = '';
   let activeModelPath = '';
+
 
   if (runFileBtn) {
     runFileBtn.addEventListener('click', (e) => {
@@ -1053,6 +1056,20 @@ document.addEventListener('DOMContentLoaded', () => {
       openTerminalAtActiveTarget('python "' + activeFile.name + '"');
     });
   }
+
+  if (aiModalBtn) {
+    aiModalBtn.addEventListener('click', (e) => {
+      if (e.shiftKey) { if (apiformOverlay) apiformOverlay.classList.remove('hidden'); return; }
+      if (isAiConfigured && aiFloatingPopup) {
+        if (aiFloatingPopup.classList.contains('hidden')) aiFloatingPopup.classList.remove('hidden');
+        else if (apiformOverlay) apiformOverlay.classList.remove('hidden');
+      } else if (apiformOverlay) {
+        apiformOverlay.classList.remove('hidden');
+      }
+
+    });
+  }
+
   if (apiFormCloseBtn && apiformOverlay) apiFormCloseBtn.addEventListener('click', () => apiformOverlay.classList.add('hidden'));
   if (aiPopupConfigBtn && apiformOverlay) aiPopupConfigBtn.addEventListener('click', () => apiformOverlay.classList.remove('hidden'));
   if (aiPopupCloseBtn && aiFloatingPopup) aiPopupCloseBtn.addEventListener('click', () => aiFloatingPopup.classList.add('hidden'));
@@ -1100,6 +1117,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(handleJsonResponse)
         .then(data => {
           if (data.status === 'success') {
+            isAiConfigured = true;
             activeAiProvider = effectiveProvider; activeAiKey = apiKey; activeModelPath = gatewayUrl;
             if (apiFormStatus) { apiFormStatus.className = 'apiform-status success'; apiFormStatus.textContent = data.message; }
             setTimeout(() => {
@@ -1135,6 +1153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(handleJsonResponse)
         .then(data => {
           if (data.status === 'success' || data.status === 'warning') {
+            isAiConfigured = true;
             activeAiProvider = 'Local (' + data.modelName + ')'; activeModelPath = data.modelPath;
             if (apiFormStatus) { apiFormStatus.className = 'apiform-status success'; apiFormStatus.textContent = data.message; }
             setTimeout(() => {

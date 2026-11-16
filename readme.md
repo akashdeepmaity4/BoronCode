@@ -7,11 +7,11 @@ Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with B
 ## WHAT'S NEW !!
 ![License](https://img.shields.io/badge/license-MIT-blue) ![Version](https://img.shields.io/badge/version-1.0.1-brightgreen) ![ParentProduct](https://img.shields.io/badge/aBoronSuiteProduct-yellow)
 
-✅ Implemented a native Chat Window to use AI locally or via an API* (Under testing)
+✅ Implemented a native Chat Window to use AI locally or via an API Provider
 
 ✅ Implemented Monaco Editor as the IDE's formatter and code canvas, getting rid of the manual breakage-prone overhead 
 
-✅ Added native CMD/Bash support, dark/light modes, font sizes, & custom file tree.
+✅ Multi-CDN Fallback Loader - dynamically cycles through three CDNs (jsdelivr, unpkg, cdnjs) if Monaco Editor fails to load.
 
 ## Preview - Dashboard 
 ![landing](assets/dark-mode-default.png)
