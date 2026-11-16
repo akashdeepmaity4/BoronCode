@@ -91,7 +91,15 @@ def build_openai_compatible_url(gateway_url):
     return f'{base}/v1/chat/completions'
 
 
-_SAFE_NAME_RE = re.compile(r'^[A-Za-z0-9_\-./]+\.[A-Za-z0-9_\-]+$')
+LOCAL_MODEL_EXTENSIONS = ('.gguf', '.bin', '.safetensors', '.onnx', '.pth', '.pt')
+LOCAL_MODEL_GATEWAYS = (
+    'http://localhost:11434',
+    'http://localhost:1234',
+    'http://localhost:8080',
+    'http://localhost:8081',
+    'http://localhost:8000',
+    'http://localhost:3000',
+)
 
 
 def is_safe_relative_path(path_str):
@@ -600,15 +608,9 @@ def call_local_ai_model(model_path, prompt, code_context="", gateway_url=""):
         if model_path_clean.startswith(('http://', 'https://')):
             candidate_bases.append(normalize_gateway_url(model_path_clean))
         if os.path.exists(model_path_clean):
-            candidate_bases.append('http://localhost:11434')
-            candidate_bases.append('http://localhost:1234')
-            candidate_bases.append('http://localhost:8080')
-            candidate_bases.append('http://localhost:8081')
-            candidate_bases.append('http://localhost:8000')
-            candidate_bases.append('http://localhost:3000')
+            candidate_bases.extend(LOCAL_MODEL_GATEWAYS)
     else:
-        candidate_bases.extend(['http://localhost:11434', 'http://localhost:1234', 'http://localhost:8080',
-                                'http://localhost:8081', 'http://localhost:8000', 'http://localhost:3000'])
+        candidate_bases.extend(LOCAL_MODEL_GATEWAYS)
 
     seen = set()
     for base in candidate_bases:
@@ -684,9 +686,7 @@ def verify_local_model():
 
     normalized_path = os.path.abspath(model_path) if os.path.exists(model_path) else model_path
     model_name = os.path.basename(normalized_path)
-    valid_extensions = ('.gguf', '.bin', '.safetensors', '.onnx', '.pth', '.pt')
-
-    if not model_name.lower().endswith(valid_extensions):
+    if not model_name.lower().endswith(LOCAL_MODEL_EXTENSIONS):
         return jsonify({'status': 'warning', 'modelName': model_name, 'modelPath': normalized_path,
                         'message': f'Model file {model_name} loaded.'})
 
@@ -700,12 +700,11 @@ def search_local_models():
     files_list = data.get('files', [])
     search_folders = data.get('folders', [])
 
-    valid_extensions = ('.gguf', '.bin', '.safetensors', '.onnx', '.pth', '.pt')
     found_models = []
 
     for f in files_list:
         clean_f = sanitize_str(f)
-        if clean_f.lower().endswith(valid_extensions):
+        if clean_f.lower().endswith(LOCAL_MODEL_EXTENSIONS):
             found_models.append(clean_f)
 
     for folder in search_folders:
@@ -713,7 +712,7 @@ def search_local_models():
         if os.path.exists(clean_folder) and os.path.isdir(clean_folder):
             for root, dirs, files in os.walk(clean_folder):
                 for fname in files:
-                    if fname.lower().endswith(valid_extensions):
+                    if fname.lower().endswith(LOCAL_MODEL_EXTENSIONS):
                         found_models.append(os.path.join(root, fname))
 
     found_models = list(dict.fromkeys(found_models))

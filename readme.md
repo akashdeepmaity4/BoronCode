@@ -11,7 +11,7 @@ Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with B
 
 ✅ Implemented Monaco Editor as the IDE's formatter and code canvas, getting rid of the manual breakage-prone overhead 
 
-✅ Added Anti-SQL Injection protocols on all input fields.
+✅ Added native CMD/Bash support, dark/light modes, font sizes, & custom file tree.
 
 ## Preview - Dashboard 
 ![landing](assets/dark-mode-default.png)
@@ -31,9 +31,9 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 
 1. Sidebar and toolbar similar to popular IDEs and code editors
 
-1. Very small size on drive 
+1. Very small size on drive and minimal RAM footprint
 
-1. Custom indentation for each Language -- Indentation preservation
+1. Custom indentation for each Language & Indentation preservation
 
 
 ## HIGHLIGHTS
@@ -43,9 +43,6 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 1. Can be run on all devices, from old legacy devices to modern powerhorses
 
 1. Can be used on Localhost, natively as a Webapp, or a full-pledged windows app
-
-1. Data stays on your Drive (Your WIFI company may still get the metadata during localhost use)
-
 
 
 ## SHORTCUTS
@@ -67,10 +64,10 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 
 
 
-## DEPENDENCIES
+## DEPENDENCIES - (skip if downloading application from [Github Releases](https://github.com/akashdeepmaity4/boroncode/releases/latest))
 
 
-- Python 3.8+ (3.13+ recommended)
+- Python 3.10+ (3.14 recommended)
 
 - Flask (Non-Negotiable)
 
@@ -98,12 +95,17 @@ pip install -r requirements.txt
 
 > Note: x64 CPU Architecture is required for this build. x86 may work due to Backwards compatibility but with bugs. 
 
-1. Download the latest release from [here](https://github.com/akashdeepmaity4/BoronCode/releases/tag/v1.0.0)
+1. Click to download the latest release from [BoronCode](https://github.com/akashdeepmaity4/BoronCode/releases/latest/download/BoronCode.exe)
 
 
 ### 2. Progressive Webapp (Recommended for Linux / Mac users)
 
 1. Download the codebase.
+
+```bash
+cd path/to/your/root
+git clone https://github.com/akashdeepmaity4/boroncode.git
+```
 
 2. Run Bash or Cmd in root directory of the codebase.
 

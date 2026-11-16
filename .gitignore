@@ -17,6 +17,7 @@ htmlcov/
 .dist/
 build/
 .venv/
+temp.md
 *.exe
 *.sh
 venv/

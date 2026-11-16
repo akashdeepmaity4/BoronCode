@@ -185,3 +185,45 @@ When changing frontend logic:
 - AI provider execution is not intended to be open-ended; it uses an allowlist and explicit fallback logic.
 
 This keeps the app predictable, secure, and easy to maintain in a local-development environment.
+
+---
+
+## 11. Checkout inventory and observed behavior (reviewed 2026-11-16)
+
+This section records the current checkout because earlier sections describe some behavior and files more generally. The repository currently has no `tests/` directory; test references above describe intended/focused coverage from prior context, not files present in this checkout. `git status` showed a pre-existing modification to `.gitignore`; it was not made as part of this review.
+
+### Paths and their roles
+
+- `app/__init__.py` is empty; `app/app.py` owns the Flask app and all HTTP routes.
+- `templates/index.html` defines the main editor shell, menus, sidebar, file tree mount, editor mount, AI configuration overlay, and AI chat popup. It includes `templates/apiform.html` and loads `static/js/main.js` plus `static/css/style.css`.
+- `templates/apiform.html` is the AI Hub form fragment for external APIs, custom gateways, and local model gateway settings/search.
+- `static/js/main.js` initializes on `DOMContentLoaded`; it owns client-side file state, editor loading, file/folder pickers, tree rendering, menus, keyboard shortcuts, theme/editor settings, terminal/run/save actions, AI setup, and chat.
+- `static/css/style.css` defines the visual system, editor layout, menus, overlays, themes, and responsive presentation. The stylesheet is UI-only and is not part of backend routing.
+- `launcher.py` imports `app.app:app`, opens a pywebview window, and exposes `DesktopFileApi` for files selected by native dialogs. The bridge tracks authorized absolute paths in a lock-protected set; it offers open-file, open-folder, save-as, read, write, and delete operations. Folder enumeration omits `.git` directories.
+- `formatting.py` contains `format_code` and `clean_html_to_raw_text`; repository search found no imports/callers in the current tracked source, so it appears disconnected from the Monaco editor path.
+- `PowerShell/Find-DeadCSS.ps1` and `PowerShell/Test-MonacoCDN.ps1` are maintenance scripts for stylesheet and CDN checks; they are not runtime pipeline steps.
+- `assets/` contains five README/workflow screenshots: default dark, light mode, active editing, AI API/local, and provider selection.
+- Root documentation/configuration: `readme.md` covers install/use/features/shortcuts; `FAQs.md` is user FAQ; `workflowandcontext.md` is this architecture record; `requirements.txt` declares Flask, pywebview, and PyInstaller; `LICENSE` is MIT; `.gitignore` excludes environments, binaries, caches, and local artifacts. `temp.md` is the requested Ponytail prompt and is ignored by Git.
+- `.venv/` is a local environment and not application source. Generated `__pycache__` files were present during inspection and are ignored.
+
+### Runtime and user flows
+
+- Browser mode can run `python app/app.py`; desktop mode runs `python launcher.py`, which starts Flask through pywebview. The Flask app uses root `templates/` and `static/` directories, and `WORKSPACE_ROOT` is the repository root.
+- On startup, `static/js/main.js` tries configured Monaco CDN URLs, waits up to 15 seconds for the loader, then initializes the editor. The editor has language selection based on file extension and dark/light theme synchronization.
+- File/folder access differs by host: pywebview uses native dialogs and the authorized-path bridge; browsers use the File System Access API where available and standard file/folder inputs otherwise. The client builds and renders a collapsible tree, skips `.git`, reads file contents into Monaco, and saves through the available host mechanism.
+- File operations include new blank files, folder creation, open file/folder, save, Save As (including moving/removing the old selected file where supported), save-copy-as, deletion for the move workflow, and auto-save. Root workspace operations go through Flask; selected external desktop files go through the pywebview bridge.
+- Menus and keyboard bindings dispatch editor, file, view, help, print, and terminal actions. The view menu toggles theme and line numbers; settings adjust font size, bold, and italic. Run supports `.py`, `.js`, and `.sh` via the Flask `/run-file` route. The toolbar star action opens a terminal prepared with the active Python file name; the terminal shortcut opens a terminal at the active file's directory.
+- AI setup is presented in an overlay. External-provider verification and chat use `/api/verify-external-api` and `/api/ai-chat`; a supplied gateway URL routes through the custom OpenAI-compatible adapter. Local model verification probes configured local AI gateways; model search accepts candidate paths from selected folders. The chat popup sends the current editor contents as code context.
+
+### Current Flask routes and safeguards
+
+- `GET /` renders the main workspace. `GET /apiform` and `/apiform.html` render the AI form directly. `GET /workspace-root` returns the workspace root. `GET /list-workspace` lists root entries while excluding `.git*` names.
+- `POST /read-file` reads UTF-8 workspace files; `POST /save-file` writes UTF-8 text and can optionally remove a previous workspace file; `POST /delete-file` removes a workspace file; `POST /create-folder` creates a child folder. These paths use workspace containment checks and reject `.git` targets.
+- `POST /run-file` allows only `.py`, `.js`, and `.sh`, validates relative paths, calls fixed executables with `shell=False`, captures output, and times out after 15 seconds.
+- `POST /open-terminal` resolves a requested working directory, prefers `bash`/Git Bash and falls back to Windows CMD or the platform terminal. Its optional Windows clipboard/paste path accepts only a constrained `python "... .py"` command shape.
+- `POST /api/verify-external-api` checks external provider/gateway configuration; `POST /api/verify-local-model` validates the supplied path or gateway shape and reports the model name (it does not probe a gateway); `POST /api/search-local-models` filters submitted path names or scans supplied folders for supported model extensions; `POST /api/ai-chat` routes chat to local or external provider handling. Local gateway probing happens inside the local chat adapter.
+- Common helpers normalize workspace paths, reject `.git`, sanitize strings, normalize gateway URLs, construct OpenAI-compatible endpoints, validate executable relative paths, resolve terminal working directories/commands, and parse provider-specific responses. Flask has explicit 404, 405, and 500 JSON handlers.
+
+### Refactor constraints from the current implementation
+
+Preserve all template IDs/classes and rendered structure, CSS, route names and methods, JSON request/response shapes, status codes/messages, keyboard shortcuts, host-specific file workflows, provider routing, path restrictions, subprocess arguments/timeouts, and error handling. No dependency, wrapper, build pipeline, workflow, or technology changes are needed for a logic-only refactor.

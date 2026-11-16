@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const fontSizeInput = el('fontSizeInput');
   const applyFontSizeBtn = el('applyFontSizeBtn');
   const boldToggle = el('boldToggle');
-  const italicToggle = el('italicToggle');
 
   const sidebar = el('sidebar');
   const notesToggleBtn = el('notesToggleBtn');
@@ -111,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/'/g, '&#x27;').replace(/`/g, '&#x60;').trim();
   }
 
-  function routeUIAction(action, options = {}) {
+  function routeUIAction(action) {
     if (!action) return;
     switch (action) {
       case 'new-file': handleNewFileShortcut(); break;
@@ -143,8 +142,6 @@ document.addEventListener('DOMContentLoaded', () => {
           if (model) monacoEditor.setSelection(model.getFullModelRange());
         }
         break;
-      default:
-        if (options.onUnknown) options.onUnknown(action);
     }
   }
 
@@ -913,14 +910,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  async function buildHandleTree(directoryHandle, parentHandle = null) {
+  async function buildHandleTree(directoryHandle) {
     const tree = {};
     for await (const [name, handle] of directoryHandle.entries()) {
       if (name === '.git') continue;
       if (handle.kind === 'directory') {
-        tree[name] = { __type__: 'dir', children: await buildHandleTree(handle, directoryHandle) };
+        tree[name] = { __type__: 'dir', children: await buildHandleTree(handle) };
       } else {
-        tree[name] = { __type__: 'file', fileHandle: handle, parentHandle: directoryHandle || parentHandle };
+        tree[name] = { __type__: 'file', fileHandle: handle, parentHandle: directoryHandle };
       }
     }
     return tree;
@@ -1042,13 +1039,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const aiPopupInput = el('aiPopupInput');
   const aiPopupSendBtn = el('aiPopupSendBtn');
 
-  let isAiConfigured = false;
   let activeAiProvider = 'AI Assistant';
   let activeAiKey = '';
   let activeModelPath = '';
 
-  if (aiModalBtn) {
-    aiModalBtn.addEventListener('click', (e) => {
+  if (runFileBtn) {
+    runFileBtn.addEventListener('click', (e) => {
       e.preventDefault();
       if (activeFileNameEl.textContent === 'No file open' || activeFile.ext !== 'py') {
         showStatus('no python interpreter found', 'error');
@@ -1104,7 +1100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(handleJsonResponse)
         .then(data => {
           if (data.status === 'success') {
-            isAiConfigured = true; activeAiProvider = effectiveProvider; activeAiKey = apiKey; activeModelPath = gatewayUrl;
+            activeAiProvider = effectiveProvider; activeAiKey = apiKey; activeModelPath = gatewayUrl;
             if (apiFormStatus) { apiFormStatus.className = 'apiform-status success'; apiFormStatus.textContent = data.message; }
             setTimeout(() => {
               if (apiformOverlay) apiformOverlay.classList.add('hidden');
@@ -1139,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(handleJsonResponse)
         .then(data => {
           if (data.status === 'success' || data.status === 'warning') {
-            isAiConfigured = true; activeAiProvider = 'Local (' + data.modelName + ')'; activeModelPath = data.modelPath;
+            activeAiProvider = 'Local (' + data.modelName + ')'; activeModelPath = data.modelPath;
             if (apiFormStatus) { apiFormStatus.className = 'apiform-status success'; apiFormStatus.textContent = data.message; }
             setTimeout(() => {
               if (apiformOverlay) apiformOverlay.classList.add('hidden');
