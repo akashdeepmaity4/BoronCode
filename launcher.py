@@ -5,7 +5,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 if __name__ == "__main__" and len(sys.argv) == 3 and sys.argv[1] == '--boron-run-python':
     import runpy
-
     script_path = os.path.abspath(sys.argv[2])
     sys.argv = [script_path]
     sys.path.insert(0, os.path.dirname(script_path))
