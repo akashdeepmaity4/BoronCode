@@ -1,7 +1,6 @@
 :root {
   --bg-dark: #181818;
   --bg-sidebar: #191919;
-  --bg-hover: #2a2d2e;
   --bg-hover: #5f5f5f;
   --bg-active: #37373d;
   --border-color: #2b2b2b;
@@ -14,6 +13,53 @@
   --warn: #b8860b;
   --menu-bg: #252526;
   --menu-border: #2b2b2b;
+
+  /* changeable - Initial Monaco syntax colors*/
+  --syntax-color-default: #d4d4d4;
+  --syntax-color-comment: #e3a004;
+  --syntax-color-keyword: #569cd6;
+  --syntax-color-string: #05c732;
+  --syntax-color-number: #b7fe91;
+  --syntax-color-variable: #9cdcfe;
+  --syntax-color-parameter: #9cdcfe;
+  --syntax-color-function: #dcdcaa;
+  --syntax-color-type: #4ec9b0;
+  --syntax-color-constant: #4fc1ff;
+  --syntax-color-operator: #d4d4d4;
+  --syntax-color-punctuation: #d4d4d4;
+  --syntax-color-regex: #d16969;
+  --syntax-color-property: #9cdcfe;
+  --syntax-color-namespace: #4ec9b0;
+  --syntax-color-decorator: #dcdcaa;
+  --syntax-color-tag: #569cd6;
+  --syntax-color-attribute: #9cdcfe;
+  --syntax-color-invalid: #f44747;
+}
+
+body.theme-nova {
+  --bg-dark: #121212;
+  --bg-sidebar: #151515;
+  --bg-header: #1a1a1a;
+  --bg-hover: #292929;
+  --bg-active: #242424;
+  --border-color: #303030;
+  --text-main: #d0d0d0;
+  --text-muted: #929292;
+  --menu-bg: #1c1c1c;
+  --menu-border: #303030;
+}
+
+body.theme-amoled {
+  --bg-dark: #000;
+  --bg-sidebar: #080808;
+  --bg-header: #0a0a0a;
+  --bg-hover: #191919;
+  --bg-active: #121212;
+  --border-color: #202020;
+  --text-main: #ededed;
+  --text-muted: #a0a0a0;
+  --menu-bg: #0c0c0c;
+  --menu-border: #202020;
 }
 
 
@@ -28,6 +74,26 @@ body.theme-light {
   --text-muted: #6a6a6a;
   --menu-bg: #f9f9f9;
   --menu-border: #707070;
+
+  --syntax-color-default: #1e1e1e;
+  --syntax-color-comment: #008000;
+  --syntax-color-keyword: #0000ff;
+  --syntax-color-string: #a31515;
+  --syntax-color-number: #098658;
+  --syntax-color-variable: #001080;
+  --syntax-color-parameter: #001080;
+  --syntax-color-function: #795e26;
+  --syntax-color-type: #267f99;
+  --syntax-color-constant: #0070c1;
+  --syntax-color-operator: #1e1e1e;
+  --syntax-color-punctuation: #1e1e1e;
+  --syntax-color-regex: #811f3f;
+  --syntax-color-property: #001080;
+  --syntax-color-namespace: #267f99;
+  --syntax-color-decorator: #795e26;
+  --syntax-color-tag: #800000;
+  --syntax-color-attribute: #ff0000;
+  --syntax-color-invalid: #cd3131;
 }
 
 /* ---- Reset ---- */
@@ -73,7 +139,6 @@ body {
 
 .app-header:hover .app-title:hover {
   color: var(--accent);
-  transform: scale(1.03)
 }
 
 .app-title {
@@ -301,6 +366,103 @@ body {
   /* allow flex child to shrink so Monaco fills it */
 }
 
+.codejar-editor {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 14px 20px;
+  outline: none;
+  background: var(--bg-dark);
+  color: var(--syntax-color-default);
+  font: 14px/1.5 Consolas, 'Courier New', monospace;
+  tab-size: 4;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+.codejar-editor::selection,
+.codejar-editor *::selection {
+  background: var(--bg-active);
+}
+
+.codejar-editor .token.comment,
+.codejar-editor .token.prolog,
+.codejar-editor .token.doctype,
+.codejar-editor .token.cdata {
+  color: var(--syntax-color-comment);
+}
+
+.codejar-editor .token.keyword,
+.codejar-editor .token.atrule,
+.codejar-editor .token.selector {
+  color: var(--syntax-color-keyword);
+}
+
+.codejar-editor .token.string,
+.codejar-editor .token.char,
+.codejar-editor .token.attr-value,
+.codejar-editor .token.inserted {
+  color: var(--syntax-color-string);
+}
+
+.codejar-editor .token.number,
+.codejar-editor .token.boolean {
+  color: var(--syntax-color-number);
+}
+
+.codejar-editor .token.variable {
+  color: var(--syntax-color-variable);
+}
+
+.codejar-editor .token.function {
+  color: var(--syntax-color-function);
+}
+
+.codejar-editor .token.class-name,
+.codejar-editor .token.builtin,
+.codejar-editor .token.namespace {
+  color: var(--syntax-color-type);
+}
+
+.codejar-editor .token.constant {
+  color: var(--syntax-color-constant);
+}
+
+.codejar-editor .token.operator {
+  color: var(--syntax-color-operator);
+}
+
+.codejar-editor .token.punctuation {
+  color: var(--syntax-color-punctuation);
+}
+
+.codejar-editor .token.regex {
+  color: var(--syntax-color-regex);
+}
+
+.codejar-editor .token.property,
+.codejar-editor .token.attr-name {
+  color: var(--syntax-color-property);
+}
+
+.codejar-editor .token.annotation,
+.codejar-editor .token.decorator {
+  color: var(--syntax-color-decorator);
+}
+
+.codejar-editor .token.tag {
+  color: var(--syntax-color-tag);
+}
+
+.codejar-editor .token.attr-value {
+  color: var(--syntax-color-attribute);
+}
+
+.codejar-editor .token.important,
+.codejar-editor .token.deleted {
+  color: var(--syntax-color-invalid);
+}
+
 /* ---- Dropdown menus ---- */
 .menu-dropdown-container {
   position: relative;
@@ -377,6 +539,32 @@ body {
 
 .settings-subpanel.hidden {
   display: none !important;
+}
+
+.theme-tweaker-panel {
+  width: 300px;
+  max-height: 65vh;
+  overflow-y: auto;
+  align-items: stretch;
+}
+
+.theme-tweaker-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.theme-tweaker-colors .setting-row {
+  justify-content: space-between;
+}
+
+.theme-tweaker-colors input[type="color"] {
+  width: 34px;
+  height: 24px;
+  padding: 1px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-dark);
+  cursor: pointer;
 }
 
 .setting-row {

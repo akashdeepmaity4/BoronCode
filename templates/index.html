@@ -14,19 +14,50 @@
         'https://unpkg.com/monaco-editor@' + V + '/min/vs',
         'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/' + V + '/min/vs'
       ];
-      window.__monacoVsPath = CDNS[0];
+      window.__monacoLoadState = 'loading';
+      window.__fallbackAssetUrls = {
+        codejar: '{{ url_for("static", filename="vendor/codejar/codejar.js") }}',
+        prism: '{{ url_for("static", filename="vendor/prism/prism-fallback.min.js") }}',
+        prismLanguageMap: '{{ url_for("static", filename="vendor/prism/monaco-prism-map.json") }}'
+      };
       var i = 0;
+      function dispatch(name) { window.dispatchEvent(new Event(name)); }
+      function loaderReady() { return typeof window.require !== 'undefined' && window.require.config; }
+      function markReady() {
+        if (window.__monacoLoadState === 'failed') return;
+        window.__monacoLoadState = 'ready';
+        dispatch('monaco-loader-ready');
+      }
+      function tryNext() {
+        i++;
+        tryLoad();
+      }
       function tryLoad() {
-        if (typeof window.require !== 'undefined' && window.require.config) return;
-        if (i >= CDNS.length) { console.error('BoronCode: all Monaco CDNs failed'); return; }
+        if (loaderReady()) { markReady(); return; }
+        if (i >= CDNS.length) {
+          window.__monacoLoadState = 'failed';
+          console.error('BoronCode: all Monaco loader CDNs failed');
+          dispatch('monaco-loader-failed');
+          return;
+        }
         window.__monacoVsPath = CDNS[i];
         var s = document.createElement('script');
         s.src = CDNS[i] + '/loader.js';
         s.async = false;
-        s.onload = function () { if (typeof window.require === 'undefined') { i++; tryLoad(); } };
-        s.onerror = function () { i++; tryLoad(); };
+        var settled = false;
+        var timeout = window.setTimeout(function () { finish(false); }, 12000);
+        function finish(ok) {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timeout);
+          if (ok && loaderReady()) markReady();
+          else tryNext();
+        }
+        s.onload = function () { finish(loaderReady()); };
+        s.onerror = function () { finish(false); };
         document.head.appendChild(s);
       }
+      if (loaderReady()) markReady();
       tryLoad();
     })();
   </script>
@@ -85,12 +116,18 @@
         </div>
       </div>
     </div>
-    <!--todo - add 3rd theme : add darker dark mode for maximum productivity and amoled mode for #000000 background. make it dropdown menu-->
     <!-- View Menu -->
     <div class="menu-dropdown-container">
       <button class="menu-item" id="view-menu-btn">View</button>
       <div id="view-dropdown" class="app-dropdown-menu hidden">
-        <div class="dropdown-item" data-action="toggle-theme"><span id="theme-status-text">Enable Light Mode</span>
+        <div class="dropdown-item theme-selector-item">
+          <label for="theme-select">Theme</label>
+          <select id="theme-select" aria-label="Theme">
+            <option value="theme-light">Light</option>
+            <option value="theme-dark">Dark</option>
+            <option value="theme-nova">Nova</option>
+            <option value="theme-amoled">AMOLED</option>
+          </select>
         </div>
         <div class="dropdown-divider"></div>
         <div class="dropdown-item" data-action="toggle-line-numbers"><span id="lines-status-text">Hide Line
@@ -102,6 +139,32 @@
     <div class="menu-dropdown-container">
       <button class="menu-item" id="settings-menu-btn">Settings</button>
       <div id="settings-dropdown" class="app-dropdown-menu hidden">
+        <div class="dropdown-item" id="theme-tweaker-toggle"><span>Tweek Theme</span><span
+            class="shortcut">&#9654;</span></div>
+        <div id="theme-tweaker-panel" class="settings-subpanel theme-tweaker-panel hidden">
+          <div class="theme-tweaker-colors">
+            <div class="setting-row"><label for="syntax-color-default">Default text</label><input type="color" id="syntax-color-default" data-syntax-color="default" title="Fallback text color"></div>
+            <div class="setting-row"><label for="syntax-color-comment">Comments</label><input type="color" id="syntax-color-comment" data-syntax-color="comment" title="Comments"></div>
+            <div class="setting-row"><label for="syntax-color-keyword">Keywords</label><input type="color" id="syntax-color-keyword" data-syntax-color="keyword" title="Keywords such as if, return, and class"></div>
+            <div class="setting-row"><label for="syntax-color-string">Strings</label><input type="color" id="syntax-color-string" data-syntax-color="string" title="String literals"></div>
+            <div class="setting-row"><label for="syntax-color-number">Numbers</label><input type="color" id="syntax-color-number" data-syntax-color="number" title="Numeric literals"></div>
+            <div class="setting-row"><label for="syntax-color-variable">Variables</label><input type="color" id="syntax-color-variable" data-syntax-color="variable" title="Variables and identifiers"></div>
+            <div class="setting-row"><label for="syntax-color-parameter">Parameters</label><input type="color" id="syntax-color-parameter" data-syntax-color="parameter" title="Function parameters"></div>
+            <div class="setting-row"><label for="syntax-color-function">Functions</label><input type="color" id="syntax-color-function" data-syntax-color="function" title="Function names and calls"></div>
+            <div class="setting-row"><label for="syntax-color-type">Types / classes</label><input type="color" id="syntax-color-type" data-syntax-color="type" title="Types, classes, and interfaces"></div>
+            <div class="setting-row"><label for="syntax-color-constant">Constants</label><input type="color" id="syntax-color-constant" data-syntax-color="constant" title="Constants and predefined values"></div>
+            <div class="setting-row"><label for="syntax-color-operator">Operators</label><input type="color" id="syntax-color-operator" data-syntax-color="operator" title="Operators such as +, =, and &&"></div>
+            <div class="setting-row"><label for="syntax-color-punctuation">Punctuation</label><input type="color" id="syntax-color-punctuation" data-syntax-color="punctuation" title="Delimiters and punctuation"></div>
+            <div class="setting-row"><label for="syntax-color-regex">Regular expressions</label><input type="color" id="syntax-color-regex" data-syntax-color="regex" title="Regular expression tokens"></div>
+            <div class="setting-row"><label for="syntax-color-property">Properties / members</label><input type="color" id="syntax-color-property" data-syntax-color="property" title="Object properties and members"></div>
+            <div class="setting-row"><label for="syntax-color-namespace">Namespaces</label><input type="color" id="syntax-color-namespace" data-syntax-color="namespace" title="Namespaces and modules"></div>
+            <div class="setting-row"><label for="syntax-color-decorator">Decorators / annotations</label><input type="color" id="syntax-color-decorator" data-syntax-color="decorator" title="Decorators and annotations"></div>
+            <div class="setting-row"><label for="syntax-color-tag">Markup tags</label><input type="color" id="syntax-color-tag" data-syntax-color="tag" title="HTML and XML tag names"></div>
+            <div class="setting-row"><label for="syntax-color-attribute">Markup attributes</label><input type="color" id="syntax-color-attribute" data-syntax-color="attribute" title="HTML and XML attributes"></div>
+            <div class="setting-row"><label for="syntax-color-invalid">Invalid / error tokens</label><input type="color" id="syntax-color-invalid" data-syntax-color="invalid" title="Invalid or error tokens"></div>
+          </div>
+          <button id="apply-syntax-theme" class="subpanel-btn" type="button">Apply Changes</button>
+        </div>
         <div class="dropdown-item" id="font-settings-toggle"><span>Font Settings</span><span
             class="shortcut">&#9654;</span></div>
         <div id="font-settings-panel" class="settings-subpanel hidden">

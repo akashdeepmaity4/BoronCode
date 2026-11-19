@@ -12,6 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let monacoEditor = null;
   let isMonacoReady = false;
+  let fallbackEditorJar = null;
+  let fallbackEditorElement = null;
+  let fallbackLanguageMap = null;
+  let isFallbackReady = false;
+  let fallbackStarted = false;
+  let editorTextCache = '';
   let isApplyingEditorContent = false;
   let autoSaveTimeout = null;
   let currentRootDir = null;
@@ -37,13 +43,41 @@ document.addEventListener('DOMContentLoaded', () => {
   const helpMenuBtn = el('help-menu-btn');
   const helpDropdown = el('help-dropdown');
 
-  const themeStatusText = el('theme-status-text');
+  const themeSelect = el('theme-select');
+  const themeTweakerToggle = el('theme-tweaker-toggle');
+  const themeTweakerPanel = el('theme-tweaker-panel');
+  const applySyntaxThemeBtn = el('apply-syntax-theme');
+  const syntaxColorInputs = Array.from(document.querySelectorAll('[data-syntax-color]'));
   const linesStatusText = el('lines-status-text');
   const fontSettingsToggle = el('font-settings-toggle');
   const fontSettingsPanel = el('font-settings-panel');
   const fontSizeInput = el('fontSizeInput');
   const applyFontSizeBtn = el('applyFontSizeBtn');
   const boldToggle = el('boldToggle');
+
+  const syntaxTokenRules = {
+    default: [''],
+    comment: ['comment'],
+    keyword: ['keyword'],
+    string: ['string'],
+    number: ['number'],
+    variable: ['identifier', 'variable'],
+    parameter: ['parameter', 'variable.parameter'],
+    function: ['function', 'support.function', 'entity.name.function', 'meta.function-call'],
+    type: ['type', 'type.identifier', 'support.type', 'entity.name.type', 'entity.name.class', 'entity.name.interface'],
+    constant: ['constant', 'constant.language', 'support.constant', 'variable.language'],
+    operator: ['operator'],
+    punctuation: ['delimiter', 'delimiter.bracket', 'punctuation'],
+    regex: ['regexp'],
+    property: ['property', 'member', 'variable.other.property', 'entity.name.property'],
+    namespace: ['namespace', 'module', 'entity.name.namespace'],
+    decorator: ['annotation', 'decorator', 'meta.annotation'],
+    tag: ['tag', 'entity.name.tag'],
+    attribute: ['attribute.name', 'attribute.value'],
+    invalid: ['invalid', 'invalid.illegal', 'invalid.deprecated'],
+  };
+  let appliedSyntaxColors = null;
+  let monacoThemeVersion = 0;
 
   const sidebar = el('sidebar');
   const notesToggleBtn = el('notesToggleBtn');
@@ -122,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'save-copy-as': triggerSaveCopyAsFile(); break;
       case 'run-file': runCurrentFile(); break;
       case 'open-terminal': openTerminalAtActiveTarget(); break;
-      case 'toggle-theme': toggleTheme(); break;
       case 'toggle-line-numbers': toggleLineNumbers(); break;
       case 'toggle-preview': toggleMarkdownPreview(); break;
       case 'print-window': window.print(); break;
@@ -140,6 +173,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monacoEditor && isMonacoReady) {
           const model = monacoEditor.getModel();
           if (model) monacoEditor.setSelection(model.getFullModelRange());
+        } else if (fallbackEditorElement) {
+          fallbackEditorElement.focus();
+          document.execCommand('selectAll');
         }
         break;
     }
@@ -203,81 +239,190 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   function initMonaco() {
-    const loaderReady = () => typeof require !== 'undefined' && !!require.config;
-    if (loaderReady()) { startMonaco(); return; }
-
-    const deadline = Date.now() + 15000;
-    const poll = setInterval(() => {
-      if (loaderReady()) {
-        clearInterval(poll);
-        startMonaco();
-      } else if (Date.now() > deadline) {
-        clearInterval(poll);
-        console.error('BoronCode: Monaco loader (require) not found. CDN blocked?');
-        showStatus('Monaco editor failed to load. Resorting to basic editor.', 'error');
-      }
-    }, 50);
+    const loaderReady = () => typeof window.require !== 'undefined' && !!window.require.config;
+    const beginMonaco = () => { if (loaderReady()) startMonaco(); };
+    window.addEventListener('monaco-loader-ready', beginMonaco);
+    window.addEventListener('monaco-loader-failed', () => {
+      window.__monacoLoadState = 'failed';
+      activateFallbackEditor('All Monaco loader CDNs failed.');
+    });
+    if (loaderReady()) startMonaco();
+    else if (window.__monacoLoadState === 'failed') activateFallbackEditor('All Monaco loader CDNs failed.');
   }
 
   function startMonaco() {
-    require.config({ paths: { vs: monacoVsPath } });
-    require(['vs/editor/editor.main'], function () {
-      if (!monacoContainer) return;
-      const isLight = document.body.classList.contains('theme-light');
-
-      monacoEditor = monaco.editor.create(monacoContainer, {
-        value: '',
-        language: 'python',
-        theme: isLight ? 'vs' : 'vs-dark',
-        automaticLayout: true,
-        fontSize: 14,
-        minimap: { enabled: true },
-        scrollBeyondLastLine: true,
-        renderWhitespace: 'selection',
-        lineNumbers: 'on',
-        tabSize: 4,
-        insertSpaces: true,
-        fontFamily: "'Consolas', 'Courier New', monospace"
+    if (isMonacoReady || fallbackStarted || !window.require || !window.require.config) return;
+    const paths = [monacoVsPath, ...MONACO_CDNS.filter(path => path !== monacoVsPath)];
+    let attemptIndex = 0;
+    const loadFromNextPath = () => {
+      if (fallbackStarted || isMonacoReady) return;
+      if (attemptIndex >= paths.length) {
+        window.__monacoLoadState = 'failed';
+        activateFallbackEditor('Monaco editor resources failed on all configured CDNs.');
+        return;
+      }
+      monacoVsPath = paths[attemptIndex++];
+      require.config({ paths: { vs: monacoVsPath }, waitSeconds: 12 });
+      require(['vs/editor/editor.main'], function () {
+        if (fallbackStarted || !monacoContainer) return;
+        try {
+          const language = getMonacoLanguage(activeFile.ext);
+          const isLight = document.body.classList.contains('theme-light');
+          monacoEditor = monaco.editor.create(monacoContainer, {
+            value: editorTextCache,
+            language,
+            theme: isLight ? 'vs' : 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            minimap: { enabled: true },
+            scrollBeyondLastLine: true,
+            renderWhitespace: 'selection',
+            lineNumbers: 'on',
+            tabSize: 4,
+            insertSpaces: true,
+            fontFamily: "'Consolas', 'Courier New', monospace"
+          });
+          isMonacoReady = true;
+          window.__monacoLoadState = 'ready';
+          applyMonacoSyntaxTheme();
+          console.log('Monaco editor ready.');
+          monacoEditor.onDidChangeModelContent(() => {
+            if (isApplyingEditorContent) return;
+            editorTextCache = monacoEditor.getValue();
+            activeFile.dirty = true;
+            triggerAutoSave();
+          });
+          monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveCurrentFile());
+          monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => triggerSaveAsFile());
+          monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => handleNewFileShortcut());
+          monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyN, () => freshWindow());
+          monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
+        } catch (err) {
+          console.error('BoronCode: Monaco editor initialization failed:', err);
+          monacoEditor = null;
+          loadFromNextPath();
+        }
+      }, function (err) {
+        console.error('BoronCode: Monaco failed from ' + monacoVsPath + ':', err);
+        loadFromNextPath();
       });
-      isMonacoReady = true;
-      console.log('Monaco editor ready.');
+    };
+    loadFromNextPath();
+  }
 
-      monacoEditor.onDidChangeModelContent(() => {
+  function loadFallbackScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Could not load local fallback script: ' + src));
+      document.head.appendChild(script);
+    });
+  }
+
+  function fallbackPrismLanguage() {
+    if (!fallbackLanguageMap) return null;
+    return fallbackLanguageMap[getMonacoLanguage(activeFile.ext)] || null;
+  }
+
+  function setFallbackLanguage() {
+    if (!fallbackEditorElement) return;
+    const prismLanguage = fallbackPrismLanguage();
+    fallbackEditorElement.className = 'codejar-editor' + (prismLanguage ? ' language-' + prismLanguage : '');
+  }
+
+  function updateFallbackEditor(code) {
+    if (!fallbackEditorElement) return;
+    setFallbackLanguage();
+    isApplyingEditorContent = true;
+    if (fallbackEditorJar) fallbackEditorJar.updateCode(code || '');
+    else fallbackEditorElement.textContent = code || '';
+    isApplyingEditorContent = false;
+  }
+
+  async function activateFallbackEditor(reason) {
+    if (isMonacoReady || fallbackStarted || !monacoContainer) return;
+    fallbackStarted = true;
+    console.warn('BoronCode: activating offline editor:', reason);
+    monacoContainer.innerHTML = '<div id="codejarFallbackEditor" class="codejar-editor" role="textbox" aria-label="Code editor" aria-multiline="true"></div>';
+    fallbackEditorElement = el('codejarFallbackEditor');
+    try {
+      const urls = window.__fallbackAssetUrls || {};
+      if (!urls.codejar || !urls.prism || !urls.prismLanguageMap) throw new Error('Offline editor asset paths are missing.');
+      const [codeJarModule] = await Promise.all([
+        import(urls.codejar),
+        loadFallbackScript(urls.prism),
+        fetch(urls.prismLanguageMap).then(response => {
+          if (!response.ok) throw new Error('Could not load the local Prism language map.');
+          return response.json();
+        }).then(map => { fallbackLanguageMap = map; })
+      ]);
+      setFallbackLanguage();
+      fallbackEditorJar = codeJarModule.CodeJar(fallbackEditorElement, (editor) => {
+        const prismLanguage = fallbackPrismLanguage();
+        if (prismLanguage && window.Prism && window.Prism.languages[prismLanguage]) {
+          window.Prism.highlightElement(editor);
+        }
+      }, { tab: '    ' });
+      fallbackEditorJar.onUpdate(code => {
         if (isApplyingEditorContent) return;
+        editorTextCache = code;
         activeFile.dirty = true;
         triggerAutoSave();
       });
+      updateFallbackEditor(editorTextCache);
+      isFallbackReady = true;
+      applyFallbackEditorOptions();
+      showStatus('Monaco is unavailable; using the offline CodeJar editor.');
+    } catch (err) {
+      console.error('BoronCode: offline CodeJar/Prism editor failed to initialize:', err);
+      fallbackEditorElement.setAttribute('contenteditable', 'plaintext-only');
+      fallbackEditorElement.setAttribute('spellcheck', 'false');
+      fallbackEditorElement.textContent = editorTextCache;
+      fallbackEditorElement.addEventListener('input', () => {
+        editorTextCache = fallbackEditorElement.innerText;
+        activeFile.dirty = true;
+        triggerAutoSave();
+      });
+      isFallbackReady = true;
+      showStatus('Offline editor assets failed to load; using plain text editing.', 'error');
+    }
+  }
 
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => saveCurrentFile());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyS, () => triggerSaveAsFile());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyN, () => handleNewFileShortcut());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyN, () => freshWindow());
-      monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
-    }, function (err) {
-      console.error('BoronCode: Monaco failed to load:', err);
-      showStatus('Monaco editor failed to load. Check your connection.', 'error');
-    });
+  function applyFallbackEditorOptions() {
+    if (!fallbackEditorElement) return;
+    const size = parseInt(fontSizeInput ? fontSizeInput.value : '14', 10);
+    fallbackEditorElement.style.fontSize = (size >= 8 && size <= 72 ? size : 14) + 'px';
+    fallbackEditorElement.style.fontWeight = boldToggle && boldToggle.checked ? 'bold' : 'normal';
+    const italicToggle = el('italicToggle');
+    fallbackEditorElement.style.fontStyle = italicToggle && italicToggle.checked ? 'italic' : 'normal';
   }
 
   function setEditorContent(content, name) {
     activeFile.name = name || activeFile.name;
     activeFile.ext = extOf(activeFile.name);
+    editorTextCache = content || '';
     if (monacoEditor && isMonacoReady) {
       isApplyingEditorContent = true;
-      monacoEditor.setValue(content || '');
+      monacoEditor.setValue(editorTextCache);
       isApplyingEditorContent = false;
       const model = monacoEditor.getModel();
       if (model) monaco.editor.setModelLanguage(model, getMonacoLanguage(activeFile.ext));
-    }
+    } else if (isFallbackReady) updateFallbackEditor(editorTextCache);
     if (activeFileNameEl) activeFileNameEl.textContent = activeFile.name;
   }
 
   function getEditorContent() {
-    return (monacoEditor && isMonacoReady) ? monacoEditor.getValue() : '';
+    if (monacoEditor && isMonacoReady) return monacoEditor.getValue();
+    if (fallbackEditorJar) return fallbackEditorJar.toString();
+    if (fallbackEditorElement && isFallbackReady) return fallbackEditorElement.innerText;
+    return editorTextCache;
   }
 
   function focusEditor() {
     if (monacoEditor && isMonacoReady) monacoEditor.focus();
+    else if (fallbackEditorJar) fallbackEditorJar.focus();
+    else if (fallbackEditorElement) fallbackEditorElement.focus();
   }
 
   initMonaco();
@@ -389,11 +534,54 @@ document.addEventListener('DOMContentLoaded', () => {
     if (folderPicker) folderPicker.click();
   }
 
-  function toggleTheme() {
-    const isLight = document.body.classList.toggle('theme-light');
-    document.body.classList.toggle('theme-dark', !isLight);
-    if (themeStatusText) themeStatusText.textContent = isLight ? 'Enable Dark Mode' : 'Enable Light Mode';
-    if (monacoEditor && isMonacoReady) monaco.editor.setTheme(isLight ? 'vs' : 'vs-dark');
+  function setTheme(themeClass) {
+    const themes = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled'];
+    if (!themes.includes(themeClass)) return;
+    document.body.classList.remove(...themes);
+    document.body.classList.add(themeClass);
+    if (themeSelect) themeSelect.value = themeClass;
+    if (!appliedSyntaxColors) syncSyntaxColorInputsFromCss();
+    applyMonacoSyntaxTheme();
+  }
+
+  function readSyntaxColorsFromCss() {
+    const styles = window.getComputedStyle(document.body);
+    return Object.keys(syntaxTokenRules).reduce((colors, key) => {
+      const input = syntaxColorInputs.find(item => item.dataset.syntaxColor === key);
+      colors[key] = styles.getPropertyValue('--syntax-color-' + key).trim() || (input && input.value) || '#ffffff';
+      return colors;
+    }, {});
+  }
+
+  function syncSyntaxColorInputsFromCss() {
+    const colors = readSyntaxColorsFromCss();
+    syntaxColorInputs.forEach(input => {
+      const color = colors[input.dataset.syntaxColor];
+      if (color) input.value = color;
+    });
+  }
+
+  function applyMonacoSyntaxTheme() {
+    const colors = appliedSyntaxColors || readSyntaxColorsFromCss();
+    Object.entries(colors).forEach(([key, color]) => {
+      document.documentElement.style.setProperty('--syntax-color-' + key, color);
+    });
+    if (fallbackEditorJar) updateFallbackEditor(editorTextCache);
+    if (!window.monaco || !isMonacoReady) return;
+    const rules = [];
+    Object.entries(syntaxTokenRules).forEach(([key, tokenScopes]) => {
+      const foreground = colors[key].replace(/^#/, '').toUpperCase();
+      tokenScopes.forEach(token => rules.push({ token, foreground }));
+    });
+    const themeName = 'boron-session-theme-' + (++monacoThemeVersion);
+    const isLight = document.body.classList.contains('theme-light');
+    monaco.editor.defineTheme(themeName, {
+      base: isLight ? 'vs' : 'vs-dark',
+      inherit: true,
+      rules,
+      colors: {},
+    });
+    monaco.editor.setTheme(themeName);
   }
 
   function toggleLineNumbers() {
@@ -654,6 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.app-dropdown-menu').forEach(m => m.classList.add('hidden'));
     document.querySelectorAll('.menu-dropdown-container').forEach(c => c.classList.remove('active'));
     if (fontSettingsPanel) fontSettingsPanel.classList.add('hidden');
+    if (themeTweakerPanel) themeTweakerPanel.classList.add('hidden');
   }
 
   function bindMenuToggle(btn, dropdown) {
@@ -695,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const action = item.dataset.action;
       closeAllDropdowns();
       focusEditor();
-      if (!monacoEditor || !isMonacoReady) return;
+      if ((!monacoEditor || !isMonacoReady) && !isFallbackReady) return;
       routeUIAction(action);
     });
   }
@@ -703,6 +892,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // View dropdown router
   if (viewDropdown) {
     viewDropdown.addEventListener('click', (e) => {
+      if (e.target.closest('.theme-selector-item')) return;
       const item = e.target.closest('.dropdown-item');
       if (!item || item.classList.contains('disabled')) return;
       const action = item.dataset.action;
@@ -710,6 +900,13 @@ document.addEventListener('DOMContentLoaded', () => {
       routeUIAction(action);
     });
   }
+
+  if (themeSelect) {
+    themeSelect.value = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled']
+      .find(themeClass => document.body.classList.contains(themeClass)) || 'theme-dark';
+    themeSelect.addEventListener('change', () => setTheme(themeSelect.value));
+  }
+  syncSyntaxColorInputsFromCss();
 
   // Help dropdown router
   if (helpDropdown) {
@@ -732,10 +929,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Settings subpanel
   if (fontSettingsPanel) fontSettingsPanel.addEventListener('click', (e) => e.stopPropagation());
+  if (themeTweakerPanel) themeTweakerPanel.addEventListener('click', (e) => e.stopPropagation());
+  if (themeTweakerToggle && themeTweakerPanel) {
+    themeTweakerToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = themeTweakerPanel.classList.contains('hidden');
+      themeTweakerPanel.classList.toggle('hidden');
+      if (fontSettingsPanel && isHidden) fontSettingsPanel.classList.add('hidden');
+    });
+  }
+  if (applySyntaxThemeBtn) {
+    applySyntaxThemeBtn.addEventListener('click', () => {
+      appliedSyntaxColors = syntaxColorInputs.reduce((colors, input) => {
+        colors[input.dataset.syntaxColor] = input.value;
+        return colors;
+      }, {});
+      applyMonacoSyntaxTheme();
+      showStatus('Highlight colors applied for this session.');
+    });
+  }
   if (fontSettingsToggle && fontSettingsPanel) {
     fontSettingsToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       fontSettingsPanel.classList.toggle('hidden');
+      if (!fontSettingsPanel.classList.contains('hidden') && themeTweakerPanel) themeTweakerPanel.classList.add('hidden');
     });
   }
   if (applyFontSizeBtn && fontSizeInput) {
@@ -1319,7 +1536,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') { e.preventDefault(); sendAiPrompt(); }
   });
 
-  if (themeStatusText) themeStatusText.textContent = 'Enable Light Mode';
   if (linesStatusText) linesStatusText.textContent = 'Hide Line Numbers';
 
   console.log('BoronCode: UI initialized. File menu handlers bound.');
