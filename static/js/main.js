@@ -214,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (Date.now() > deadline) {
         clearInterval(poll);
         console.error('BoronCode: Monaco loader (require) not found. CDN blocked?');
-        showStatus('Monaco editor failed to load (CDN blocked?).', 'error');
+        showStatus('Monaco editor failed to load. Resorting to basic editor.', 'error');
       }
     }, 50);
   }
@@ -232,7 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
         automaticLayout: true,
         fontSize: 14,
         minimap: { enabled: true },
-        scrollBeyondLastLine: false,
+        scrollBeyondLastLine: true,
         renderWhitespace: 'selection',
         lineNumbers: 'on',
         tabSize: 4,
@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fontFamily: "'Consolas', 'Courier New', monospace"
       });
       isMonacoReady = true;
-      console.log('BoronCode: Monaco editor ready.');
+      console.log('Monaco editor ready.');
 
       monacoEditor.onDidChangeModelContent(() => {
         if (isApplyingEditorContent) return;
