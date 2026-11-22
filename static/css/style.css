@@ -38,7 +38,7 @@
 
 body.theme-nova {
   --bg-dark: #121212;
-  --bg-sidebar: #151515;
+  --bg-sidebar: #121212;
   --bg-header: #1a1a1a;
   --bg-hover: #292929;
   --bg-active: #242424;
@@ -51,11 +51,11 @@ body.theme-nova {
 
 body.theme-amoled {
   --bg-dark: #000;
-  --bg-sidebar: #080808;
+  --bg-sidebar: #000;
   --bg-header: #0a0a0a;
   --bg-hover: #191919;
-  --bg-active: #121212;
-  --border-color: #202020;
+  --bg-active: #020202;
+  --border-color: #000;
   --text-main: #ededed;
   --text-muted: #a0a0a0;
   --menu-bg: #0c0c0c;
@@ -75,25 +75,6 @@ body.theme-light {
   --menu-bg: #f9f9f9;
   --menu-border: #707070;
 
-  --syntax-color-default: #1e1e1e;
-  --syntax-color-comment: #008000;
-  --syntax-color-keyword: #0000ff;
-  --syntax-color-string: #a31515;
-  --syntax-color-number: #098658;
-  --syntax-color-variable: #001080;
-  --syntax-color-parameter: #001080;
-  --syntax-color-function: #795e26;
-  --syntax-color-type: #267f99;
-  --syntax-color-constant: #0070c1;
-  --syntax-color-operator: #1e1e1e;
-  --syntax-color-punctuation: #1e1e1e;
-  --syntax-color-regex: #811f3f;
-  --syntax-color-property: #001080;
-  --syntax-color-namespace: #267f99;
-  --syntax-color-decorator: #795e26;
-  --syntax-color-tag: #800000;
-  --syntax-color-attribute: #ff0000;
-  --syntax-color-invalid: #cd3131;
 }
 
 /* ---- Reset ---- */
@@ -357,7 +338,7 @@ body {
   transform: scale(1.09)
 }
 
-/* Monaco container — the only coding pad */
+/* Editor container */
 .monaco-container {
   flex: 1;
   width: 100%;
@@ -372,8 +353,8 @@ body {
   overflow: auto;
   padding: 14px 20px;
   outline: none;
-  background: var(--bg-dark);
-  color: var(--syntax-color-default);
+  background: #181818;
+  color: #d4d4d4;
   font: 14px/1.5 Consolas, 'Courier New', monospace;
   tab-size: 4;
   white-space: pre;
@@ -382,85 +363,89 @@ body {
 
 .codejar-editor::selection,
 .codejar-editor *::selection {
-  background: var(--bg-active);
+  background: #37373d;
 }
 
 .codejar-editor .token.comment,
 .codejar-editor .token.prolog,
 .codejar-editor .token.doctype,
 .codejar-editor .token.cdata {
-  color: var(--syntax-color-comment);
+  color: #6a9955;
 }
 
 .codejar-editor .token.keyword,
 .codejar-editor .token.atrule,
 .codejar-editor .token.selector {
-  color: var(--syntax-color-keyword);
+  color: #569cd6;
 }
 
 .codejar-editor .token.string,
 .codejar-editor .token.char,
 .codejar-editor .token.attr-value,
 .codejar-editor .token.inserted {
-  color: var(--syntax-color-string);
+  color: #ce9178;
 }
 
 .codejar-editor .token.number,
-.codejar-editor .token.boolean {
-  color: var(--syntax-color-number);
+.codejar-editor .token.symbol {
+  color: #b5cea8;
+}
+
+.codejar-editor .token.boolean,
+.codejar-editor .token.constant {
+  color: #4fc1ff;
 }
 
 .codejar-editor .token.variable {
-  color: var(--syntax-color-variable);
+  color: #9cdcfe;
 }
 
 .codejar-editor .token.function {
-  color: var(--syntax-color-function);
+  color: #dcdcaa;
 }
 
 .codejar-editor .token.class-name,
-.codejar-editor .token.builtin,
-.codejar-editor .token.namespace {
-  color: var(--syntax-color-type);
+.codejar-editor .token.builtin {
+  color: #4ec9b0;
 }
 
-.codejar-editor .token.constant {
-  color: var(--syntax-color-constant);
+.codejar-editor .token.namespace {
+  color: #4ec9b0;
 }
 
 .codejar-editor .token.operator {
-  color: var(--syntax-color-operator);
+  color: #d4d4d4;
 }
 
 .codejar-editor .token.punctuation {
-  color: var(--syntax-color-punctuation);
+  color: #d4d4d4;
 }
 
 .codejar-editor .token.regex {
-  color: var(--syntax-color-regex);
+  color: #d16969;
 }
 
 .codejar-editor .token.property,
 .codejar-editor .token.attr-name {
-  color: var(--syntax-color-property);
+  color: #9cdcfe;
 }
 
 .codejar-editor .token.annotation,
 .codejar-editor .token.decorator {
-  color: var(--syntax-color-decorator);
+  color: #dcdcaa;
 }
 
 .codejar-editor .token.tag {
-  color: var(--syntax-color-tag);
+  color: #569cd6;
 }
 
 .codejar-editor .token.attr-value {
-  color: var(--syntax-color-attribute);
+  color: #9cdcfe;
 }
 
 .codejar-editor .token.important,
 .codejar-editor .token.deleted {
-  color: var(--syntax-color-invalid);
+  color: #f44747;
 }
 
 /* ---- Dropdown menus ---- */

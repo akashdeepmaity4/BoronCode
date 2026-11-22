@@ -12,9 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let monacoEditor = null;
   let isMonacoReady = false;
-  let fallbackEditorJar = null;
-  let fallbackEditorElement = null;
-  let fallbackLanguageMap = null;
+  let fallbackEditor = null;
   let isFallbackReady = false;
   let fallbackStarted = false;
   let editorTextCache = '';
@@ -38,12 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const editDropdown = el('edit-dropdown');
   const viewMenuBtn = el('view-menu-btn');
   const viewDropdown = el('view-dropdown');
+  const themeMenuBtn = el('theme-menu-btn');
+  const themeDropdown = el('theme-dropdown');
   const settingsMenuBtn = el('settings-menu-btn');
   const settingsDropdown = el('settings-dropdown');
   const helpMenuBtn = el('help-menu-btn');
   const helpDropdown = el('help-dropdown');
 
-  const themeSelect = el('theme-select');
   const themeTweakerToggle = el('theme-tweaker-toggle');
   const themeTweakerPanel = el('theme-tweaker-panel');
   const applySyntaxThemeBtn = el('apply-syntax-theme');
@@ -173,10 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monacoEditor && isMonacoReady) {
           const model = monacoEditor.getModel();
           if (model) monacoEditor.setSelection(model.getFullModelRange());
-        } else if (fallbackEditorElement) {
-          fallbackEditorElement.focus();
-          document.execCommand('selectAll');
-        }
+        } else if (isFallbackReady && fallbackEditor) fallbackEditor.selectAll();
         break;
     }
   }
@@ -213,9 +209,23 @@ document.addEventListener('DOMContentLoaded', () => {
       sh: 'shell', bash: 'shell', zsh: 'shell', yml: 'yaml', yaml: 'yaml',
       xml: 'xml', sql: 'sql', php: 'php', rb: 'ruby', go: 'go', rs: 'rust',
       cs: 'csharp', bat: 'bat', ps1: 'powershell', ini: 'ini',
-      dockerfile: 'dockerfile', txt: 'plaintext'
+      dockerfile: 'dockerfile', txt: 'plaintext', coffee: 'coffeescript',
+      ftl: 'freemarker2', dax: 'msdax', mm: 'objective-c', pas: 'pascal',
+      rest: 'restructuredtext', sol: 'solidity', vb: 'vb', wgsl: 'wgsl'
     };
-    return map[(ext || '').toLowerCase().replace(/^\./, '')] || 'plaintext';
+    const extension = (ext || '').toLowerCase().replace(/^\./, '');
+    const directMonacoIds = new Set([
+      'abap', 'apex', 'azcli', 'bat', 'bicep', 'cameligo', 'clojure', 'coffeescript', 'cpp', 'csharp',
+      'csp', 'css', 'cypher', 'dart', 'dockerfile', 'ecl', 'elixir', 'flow9', 'fsharp', 'freemarker2',
+      'go', 'graphql', 'handlebars', 'hcl', 'html', 'ini', 'java', 'javascript', 'julia', 'kotlin',
+      'less', 'lexon', 'lua', 'liquid', 'm3', 'markdown', 'mdx', 'mips', 'msdax', 'mysql',
+      'objective-c', 'pascal', 'pascaligo', 'perl', 'pgsql', 'php', 'pla', 'postiats', 'powerquery',
+      'powershell', 'protobuf', 'pug', 'python', 'qsharp', 'r', 'razor', 'redis', 'redshift',
+      'restructuredtext', 'ruby', 'rust', 'sb', 'scala', 'scheme', 'scss', 'shell', 'solidity',
+      'sophia', 'sparql', 'sql', 'st', 'swift', 'systemverilog', 'tcl', 'twig', 'typescript', 'vb',
+      'wgsl', 'xml', 'yaml', 'json', 'plaintext', 'c'
+    ]);
+    return map[extension] || (directMonacoIds.has(extension) ? extension : 'plaintext');
   }
 
   const MONACO_VERSION = '0.45.0';
@@ -262,8 +272,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       monacoVsPath = paths[attemptIndex++];
-      require.config({ paths: { vs: monacoVsPath }, waitSeconds: 12 });
-      require(['vs/editor/editor.main'], function () {
+      try {
+        require.config({ paths: { vs: monacoVsPath }, waitSeconds: 12 });
+        require(['vs/editor/editor.main'], function () {
         if (fallbackStarted || !monacoContainer) return;
         try {
           const language = getMonacoLanguage(activeFile.ext);
@@ -299,103 +310,70 @@ document.addEventListener('DOMContentLoaded', () => {
           monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyO, () => openFilePicker());
         } catch (err) {
           console.error('BoronCode: Monaco editor initialization failed:', err);
+          if (monacoEditor) monacoEditor.dispose();
           monacoEditor = null;
+          isMonacoReady = false;
           loadFromNextPath();
         }
-      }, function (err) {
-        console.error('BoronCode: Monaco failed from ' + monacoVsPath + ':', err);
+        }, function (err) {
+          console.error('BoronCode: Monaco failed from ' + monacoVsPath + ':', err);
+          loadFromNextPath();
+        });
+      } catch (err) {
+        console.error('BoronCode: Monaco request failed from ' + monacoVsPath + ':', err);
         loadFromNextPath();
-      });
+      }
     };
     loadFromNextPath();
-  }
-
-  function loadFallbackScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Could not load local fallback script: ' + src));
-      document.head.appendChild(script);
-    });
-  }
-
-  function fallbackPrismLanguage() {
-    if (!fallbackLanguageMap) return null;
-    return fallbackLanguageMap[getMonacoLanguage(activeFile.ext)] || null;
-  }
-
-  function setFallbackLanguage() {
-    if (!fallbackEditorElement) return;
-    const prismLanguage = fallbackPrismLanguage();
-    fallbackEditorElement.className = 'codejar-editor' + (prismLanguage ? ' language-' + prismLanguage : '');
-  }
-
-  function updateFallbackEditor(code) {
-    if (!fallbackEditorElement) return;
-    setFallbackLanguage();
-    isApplyingEditorContent = true;
-    if (fallbackEditorJar) fallbackEditorJar.updateCode(code || '');
-    else fallbackEditorElement.textContent = code || '';
-    isApplyingEditorContent = false;
   }
 
   async function activateFallbackEditor(reason) {
     if (isMonacoReady || fallbackStarted || !monacoContainer) return;
     fallbackStarted = true;
     console.warn('BoronCode: activating offline editor:', reason);
-    monacoContainer.innerHTML = '<div id="codejarFallbackEditor" class="codejar-editor" role="textbox" aria-label="Code editor" aria-multiline="true"></div>';
-    fallbackEditorElement = el('codejarFallbackEditor');
     try {
       const urls = window.__fallbackAssetUrls || {};
-      if (!urls.codejar || !urls.prism || !urls.prismLanguageMap) throw new Error('Offline editor asset paths are missing.');
-      const [codeJarModule] = await Promise.all([
-        import(urls.codejar),
-        loadFallbackScript(urls.prism),
-        fetch(urls.prismLanguageMap).then(response => {
-          if (!response.ok) throw new Error('Could not load the local Prism language map.');
-          return response.json();
-        }).then(map => { fallbackLanguageMap = map; })
-      ]);
-      setFallbackLanguage();
-      fallbackEditorJar = codeJarModule.CodeJar(fallbackEditorElement, (editor) => {
-        const prismLanguage = fallbackPrismLanguage();
-        if (prismLanguage && window.Prism && window.Prism.languages[prismLanguage]) {
-          window.Prism.highlightElement(editor);
+      if (!urls.component || !urls.codejar || !urls.prism || !urls.prismLanguageMap) {
+        throw new Error('Offline editor asset paths are missing.');
+      }
+      const fallbackModule = await import(urls.component);
+      isApplyingEditorContent = true;
+      fallbackEditor = await fallbackModule.createFallbackEditor(monacoContainer, {
+        codejarUrl: urls.codejar,
+        prismUrl: urls.prism,
+        languageMapUrl: urls.prismLanguageMap,
+        languageId: getMonacoLanguage(activeFile.ext),
+        initialValue: editorTextCache,
+        onUpdate: (code) => {
+          if (isApplyingEditorContent) return;
+          editorTextCache = code;
+          activeFile.dirty = true;
+          triggerAutoSave();
         }
-      }, { tab: '    ' });
-      fallbackEditorJar.onUpdate(code => {
-        if (isApplyingEditorContent) return;
-        editorTextCache = code;
-        activeFile.dirty = true;
-        triggerAutoSave();
       });
-      updateFallbackEditor(editorTextCache);
       isFallbackReady = true;
+      isApplyingEditorContent = false;
       applyFallbackEditorOptions();
-      showStatus('Monaco is unavailable; using the offline CodeJar editor.');
+      showStatus(fallbackEditor.isHighlighted
+        ? 'Monaco is unavailable; using the offline syntax editor.'
+        : 'Monaco is unavailable; using plain text editing.');
     } catch (err) {
+      isApplyingEditorContent = false;
       console.error('BoronCode: offline CodeJar/Prism editor failed to initialize:', err);
-      fallbackEditorElement.setAttribute('contenteditable', 'plaintext-only');
-      fallbackEditorElement.setAttribute('spellcheck', 'false');
-      fallbackEditorElement.textContent = editorTextCache;
-      fallbackEditorElement.addEventListener('input', () => {
-        editorTextCache = fallbackEditorElement.innerText;
-        activeFile.dirty = true;
-        triggerAutoSave();
-      });
-      isFallbackReady = true;
-      showStatus('Offline editor assets failed to load; using plain text editing.', 'error');
+      showStatus('Offline editor could not initialize.', 'error');
     }
   }
 
   function applyFallbackEditorOptions() {
-    if (!fallbackEditorElement) return;
+    if (!fallbackEditor) return;
     const size = parseInt(fontSizeInput ? fontSizeInput.value : '14', 10);
-    fallbackEditorElement.style.fontSize = (size >= 8 && size <= 72 ? size : 14) + 'px';
-    fallbackEditorElement.style.fontWeight = boldToggle && boldToggle.checked ? 'bold' : 'normal';
+    const options = {
+      fontSize: size >= 8 && size <= 72 ? size : 14,
+      fontWeight: boldToggle && boldToggle.checked ? 'bold' : 'normal',
+    };
     const italicToggle = el('italicToggle');
-    fallbackEditorElement.style.fontStyle = italicToggle && italicToggle.checked ? 'italic' : 'normal';
+    options.fontStyle = italicToggle && italicToggle.checked ? 'italic' : 'normal';
+    fallbackEditor.setOptions(options);
   }
 
   function setEditorContent(content, name) {
@@ -408,21 +386,24 @@ document.addEventListener('DOMContentLoaded', () => {
       isApplyingEditorContent = false;
       const model = monacoEditor.getModel();
       if (model) monaco.editor.setModelLanguage(model, getMonacoLanguage(activeFile.ext));
-    } else if (isFallbackReady) updateFallbackEditor(editorTextCache);
+    } else if (isFallbackReady && fallbackEditor) {
+      isApplyingEditorContent = true;
+      fallbackEditor.setLanguage(getMonacoLanguage(activeFile.ext));
+      fallbackEditor.setValue(editorTextCache);
+      isApplyingEditorContent = false;
+    }
     if (activeFileNameEl) activeFileNameEl.textContent = activeFile.name;
   }
 
   function getEditorContent() {
     if (monacoEditor && isMonacoReady) return monacoEditor.getValue();
-    if (fallbackEditorJar) return fallbackEditorJar.toString();
-    if (fallbackEditorElement && isFallbackReady) return fallbackEditorElement.innerText;
+    if (isFallbackReady && fallbackEditor) return fallbackEditor.getValue();
     return editorTextCache;
   }
 
   function focusEditor() {
     if (monacoEditor && isMonacoReady) monacoEditor.focus();
-    else if (fallbackEditorJar) fallbackEditorJar.focus();
-    else if (fallbackEditorElement) fallbackEditorElement.focus();
+    else if (isFallbackReady && fallbackEditor) fallbackEditor.focus();
   }
 
   initMonaco();
@@ -539,7 +520,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!themes.includes(themeClass)) return;
     document.body.classList.remove(...themes);
     document.body.classList.add(themeClass);
-    if (themeSelect) themeSelect.value = themeClass;
+    if (themeDropdown) {
+      themeDropdown.querySelectorAll('[data-theme]').forEach((item) => {
+        item.setAttribute('aria-checked', String(item.dataset.theme === themeClass));
+      });
+    }
     if (!appliedSyntaxColors) syncSyntaxColorInputsFromCss();
     applyMonacoSyntaxTheme();
   }
@@ -563,10 +548,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyMonacoSyntaxTheme() {
     const colors = appliedSyntaxColors || readSyntaxColorsFromCss();
-    Object.entries(colors).forEach(([key, color]) => {
-      document.documentElement.style.setProperty('--syntax-color-' + key, color);
-    });
-    if (fallbackEditorJar) updateFallbackEditor(editorTextCache);
     if (!window.monaco || !isMonacoReady) return;
     const rules = [];
     Object.entries(syntaxTokenRules).forEach(([key, tokenScopes]) => {
@@ -582,6 +563,12 @@ document.addEventListener('DOMContentLoaded', () => {
       colors: {},
     });
     monaco.editor.setTheme(themeName);
+  }
+
+  function applySyntaxColorVariables(colors) {
+    Object.entries(colors).forEach(([key, color]) => {
+      document.documentElement.style.setProperty('--syntax-color-' + key, color);
+    });
   }
 
   function toggleLineNumbers() {
@@ -841,6 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeAllDropdowns() {
     document.querySelectorAll('.app-dropdown-menu').forEach(m => m.classList.add('hidden'));
     document.querySelectorAll('.menu-dropdown-container').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.menu-item[aria-expanded]').forEach(btn => btn.setAttribute('aria-expanded', 'false'));
     if (fontSettingsPanel) fontSettingsPanel.classList.add('hidden');
     if (themeTweakerPanel) themeTweakerPanel.classList.add('hidden');
   }
@@ -854,6 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (wasHidden) {
         dropdown.classList.remove('hidden');
         btn.closest('.menu-dropdown-container')?.classList.add('active');
+        if (btn.hasAttribute('aria-expanded')) btn.setAttribute('aria-expanded', 'true');
       }
     });
   }
@@ -861,6 +850,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindMenuToggle(fileMenuBtn, fileDropdown);
   bindMenuToggle(editMenuBtn, editDropdown);
   bindMenuToggle(viewMenuBtn, viewDropdown);
+  bindMenuToggle(themeMenuBtn, themeDropdown);
   bindMenuToggle(settingsMenuBtn, settingsDropdown);
   bindMenuToggle(helpMenuBtn, helpDropdown);
   document.addEventListener('click', () => closeAllDropdowns());
@@ -892,7 +882,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // View dropdown router
   if (viewDropdown) {
     viewDropdown.addEventListener('click', (e) => {
-      if (e.target.closest('.theme-selector-item')) return;
       const item = e.target.closest('.dropdown-item');
       if (!item || item.classList.contains('disabled')) return;
       const action = item.dataset.action;
@@ -901,10 +890,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (themeSelect) {
-    themeSelect.value = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled']
+  if (themeDropdown) {
+    const currentTheme = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled']
       .find(themeClass => document.body.classList.contains(themeClass)) || 'theme-dark';
-    themeSelect.addEventListener('change', () => setTheme(themeSelect.value));
+    themeDropdown.querySelectorAll('[data-theme]').forEach((item) => {
+      item.setAttribute('aria-checked', String(item.dataset.theme === currentTheme));
+    });
+    themeDropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-theme]');
+      if (!item) return;
+      setTheme(item.dataset.theme);
+      closeAllDropdowns();
+    });
   }
   syncSyntaxColorInputsFromCss();
 
@@ -944,6 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
         colors[input.dataset.syntaxColor] = input.value;
         return colors;
       }, {});
+      applySyntaxColorVariables(appliedSyntaxColors);
       applyMonacoSyntaxTheme();
       showStatus('Highlight colors applied for this session.');
     });
@@ -959,11 +957,15 @@ document.addEventListener('DOMContentLoaded', () => {
     applyFontSizeBtn.addEventListener('click', () => {
       const size = parseInt(fontSizeInput.value, 10);
       if (size >= 8 && size <= 72 && monacoEditor && isMonacoReady) monacoEditor.updateOptions({ fontSize: size });
+      else applyFallbackEditorOptions();
     });
   }
   if (boldToggle) boldToggle.addEventListener('change', (e) => {
     if (monacoEditor && isMonacoReady) monacoEditor.updateOptions({ fontWeight: e.target.checked ? 'bold' : 'normal' });
+    else applyFallbackEditorOptions();
   });
+  const italicToggle = el('italicToggle');
+  if (italicToggle) italicToggle.addEventListener('change', applyFallbackEditorOptions);
 
   function getTerminalTargetCwd() {
     if (activeFile && activeFile.path) {
