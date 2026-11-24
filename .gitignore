@@ -31,7 +31,6 @@ node_modules/
 .DS_Store
 Thumbs.db
 .vscode/*
-!.vscode/settings.json
 .idea/
 context.md
 Sample Note.md
