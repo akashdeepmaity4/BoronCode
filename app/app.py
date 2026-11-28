@@ -7,12 +7,11 @@ Or via launcher.py for the pywebview desktop window.
 from flask import Flask, render_template, request, jsonify
 import glob
 import os
-import re
 import subprocess
 import shutil
 import sys
+import tempfile
 import html
-import time
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -275,16 +274,12 @@ def list_workspace():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-def find_python_interpreter():
-    if not getattr(sys, 'frozen', False) and os.path.isfile(sys.executable):
-        return sys.executable
-
-    for command in ('python', 'python3', 'py'):
-        interpreter = shutil.which(command)
-        if interpreter and 'windowsapps' not in interpreter.lower():
-            return interpreter
-
-    if os.name == 'nt':
+def iter_search_roots():
+    """Yield filesystem roots used to look for user-installed runtimes."""
+    if sys.platform != 'win32':
+        yield os.sep
+        return
+    try:
         import ctypes
 
         kernel32 = ctypes.windll.kernel32
@@ -292,34 +287,99 @@ def find_python_interpreter():
         kernel32.GetDriveTypeW.argtypes = [ctypes.c_wchar_p]
         kernel32.GetDriveTypeW.restype = ctypes.c_uint
         drive_mask = kernel32.GetLogicalDrives()
-        distributions = ('Anaconda3', 'Miniconda3', 'Miniforge3', 'Mambaforge')
-        patterns = (
-            'Python*/python.exe',
-            'Program Files/Python*/python.exe',
-            'Program Files (x86)/Python*/python.exe',
-            'Users/*/AppData/Local/Programs/Python/Python*/python.exe',
-        )
         for index in range(26):
             if not drive_mask & (1 << index):
                 continue
             drive = f'{chr(ord("A") + index)}:\\'
-            if kernel32.GetDriveTypeW(drive) not in (2, 3):
-                continue
-            for pattern in patterns:
-                matches = glob.glob(os.path.join(drive, pattern))
-                if matches:
-                    return sorted(matches, reverse=True)[0]
-            for distribution in distributions:
-                candidates = (
-                    os.path.join(drive, distribution, 'python.exe'),
-                    os.path.join(drive, 'Users', '*', distribution, 'python.exe'),
-                )
-                for candidate_pattern in candidates:
-                    matches = glob.glob(candidate_pattern)
-                    if matches:
-                        return matches[0]
+            if kernel32.GetDriveTypeW(drive) in (2, 3):
+                yield drive
+    except Exception:
+        yield os.environ.get('SystemDrive', 'C:\\')
 
+
+def find_interpreter(commands, patterns=()):
+    """Find a runtime in PATH first, then in common install locations."""
+    for command in commands:
+        found = shutil.which(command)
+        if found and os.path.isfile(found) and 'windowsapps' not in found.lower():
+            return found
+
+    for root in iter_search_roots():
+        for pattern in patterns:
+            for match in sorted(glob.glob(os.path.join(root, pattern)), reverse=True):
+                if os.path.isfile(match):
+                    return os.path.normpath(match)
     return None
+
+
+PYTHON_PATHS = (
+    'Python*/python.exe',
+    'Program Files/Python*/python.exe',
+    'Program Files (x86)/Python*/python.exe',
+    'Users/*/AppData/Local/Programs/Python/Python*/python.exe',
+    'Anaconda3/python.exe',
+    'Miniconda3/python.exe',
+    'Miniforge3/python.exe',
+    'Mambaforge/python.exe',
+    'Users/*/Anaconda3/python.exe',
+    'Users/*/Miniconda3/python.exe',
+    'usr/bin/python3',
+    'usr/local/bin/python3',
+    'opt/homebrew/bin/python3',
+)
+
+OTHER_INTERPRETERS = {
+    'js': {
+        'label': 'javascript',
+        'commands': ('node', 'nodejs'),
+        'patterns': (
+            'Program Files/nodejs/node.exe',
+            'Program Files (x86)/nodejs/node.exe',
+            'Users/*/AppData/Local/Programs/nodejs/node.exe',
+            'Users/*/AppData/Roaming/nvm/*/node.exe',
+            'usr/bin/node',
+            'usr/local/bin/node',
+            'opt/homebrew/bin/node',
+        ),
+    },
+    'sh': {
+        'label': 'bash',
+        'commands': ('bash',),
+        'patterns': (
+            'Program Files/Git/bin/bash.exe',
+            'Program Files/Git/usr/bin/bash.exe',
+            'Program Files (x86)/Git/bin/bash.exe',
+            'Users/*/AppData/Local/Programs/Git/bin/bash.exe',
+            'Users/*/AppData/Local/Programs/Git/usr/bin/bash.exe',
+            'bin/bash',
+            'usr/bin/bash',
+            'usr/local/bin/bash',
+        ),
+    },
+}
+
+
+def find_python_interpreter():
+    """Find the user's default Python interpreter."""
+    return find_interpreter(('python', 'python3', 'py'), PYTHON_PATHS)
+
+
+def resolve_runnable_path(path_str):
+    """Resolve a file the user explicitly opened; keep shell metacharacters out."""
+    if not is_safe_relative_path(path_str):
+        return ''
+    cleaned = path_str.replace('\\', '/')
+    candidate = os.path.abspath(cleaned) if os.path.isabs(cleaned) else resolve_workspace_path(cleaned)
+    if is_git_restricted(candidate) or not candidate or not os.path.isfile(candidate):
+        return ''
+    return candidate
+
+
+def missing_interpreter(label):
+    return jsonify({
+        'status': 'interpreter-missing',
+        'message': f'no {label} interpreter found on drive'
+    }), 500
 
 
 @app.route('/run-file', methods=['POST'])
@@ -330,27 +390,32 @@ def run_file():
     if not file_path:
         return jsonify({'status': 'error', 'message': 'File path is required.'}), 400
 
-    if not is_safe_relative_path(file_path):
+    resolved = resolve_runnable_path(file_path)
+    if not resolved:
         return jsonify({'status': 'error', 'message': 'Invalid file path.'}), 400
-
-    resolved = resolve_workspace_path(file_path)
 
     ext = resolved.rsplit('.', 1)[-1].lower() if '.' in resolved else ''
     warning = None
-    runners = {'js': ['node', resolved], 'sh': ['bash', resolved]}
     if ext == 'py':
         interpreter = find_python_interpreter()
         if interpreter:
-            runners['py'] = [interpreter, resolved]
+            cmd = [interpreter, resolved]
         elif getattr(sys, 'frozen', False):
-            runners['py'] = [sys.executable, '--boron-run-python', resolved]
-            warning = 'Python interpreter not on disk. Running fallback.'
+            cmd = [sys.executable, '--boron-run-python', resolved]
+            warning = 'No Python interpreter found on drive. Using the bundled interpreter.'
+        elif os.path.isfile(sys.executable):
+            cmd = [sys.executable, resolved]
+            warning = 'No Python interpreter found on drive. Using the current interpreter.'
         else:
-            return jsonify({'status': 'error', 'message': 'Python interpreter could not be found.'}), 500
-
-    cmd = runners.get(ext)
-    if not cmd:
-        return jsonify({'status': 'error', 'message': f'Execution for .{ext} files is not supported.'}), 400
+            return missing_interpreter('python')
+    else:
+        spec = OTHER_INTERPRETERS.get(ext)
+        if not spec:
+            return jsonify({'status': 'error', 'message': f'Execution for .{ext} files is not supported.'}), 400
+        interpreter = find_interpreter(spec['commands'], spec['patterns'])
+        if not interpreter:
+            return missing_interpreter(spec['label'])
+        cmd = [interpreter, resolved]
 
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=15, shell=False)
@@ -365,111 +430,58 @@ def run_file():
         return jsonify(response), 500
 
 
-def get_common_git_bash_candidates():
-    """Return standard Git for Windows install locations for bash.exe."""
-    user_root = os.environ.get('USERPROFILE') or os.path.expanduser('~')
-    local_root = os.environ.get('LOCALAPPDATA') or os.path.join(user_root, 'AppData', 'Local')
-    roots = [
-        os.environ.get('ProgramFiles'),
-        os.environ.get('ProgramFiles(x86)'),
-        os.environ.get('ProgramW6432'),
-        os.path.join(local_root, 'Programs'),
-        os.path.join(user_root, 'AppData', 'Local', 'Programs'),
-        r'C:\Program Files',
-        r'C:\Program Files (x86)',
-    ]
-    seen = set()
-    for root in roots:
-        if not root:
+def resolve_terminal_cwd(active_path="", folder_path=""):
+    """Pick the terminal cwd from the open file/folder, or fall back to temp."""
+    for value in (active_path, folder_path):
+        if not value or not isinstance(value, str):
             continue
-        for candidate in (
-            os.path.join(root, 'Git', 'bin', 'bash.exe'),
-            os.path.join(root, 'Git', 'usr', 'bin', 'bash.exe'),
-            os.path.join(root, 'Git', 'bin', 'bash'),
-            os.path.join(root, 'Git', 'usr', 'bin', 'bash'),
-            os.path.join(root, 'Git', 'Git Bash.lnk'),
-            os.path.join(root, 'Git', 'Git Bash'),
-        ):
-            normalized = os.path.normpath(candidate)
-            if normalized not in seen:
-                seen.add(normalized)
-                yield normalized
-
-    shortcut = r'C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Git\Git Bash.lnk'
-    if shortcut not in seen:
-        seen.add(shortcut)
-        yield shortcut
+        cleaned = ''.join(ch for ch in value if ch not in '\x00\r\n')
+        if is_git_restricted(cleaned):
+            continue
+        candidate = os.path.abspath(
+            cleaned if os.path.isabs(cleaned) else os.path.join(WORKSPACE_ROOT, cleaned)
+        )
+        if os.path.isfile(candidate):
+            candidate = os.path.dirname(candidate)
+        if os.path.isdir(candidate):
+            return os.path.normpath(candidate)
+    return os.path.normpath(tempfile.gettempdir())
 
 
-def resolve_terminal_directory(requested_cwd=None):
-    """Choose the directory the terminal should open in."""
-    default_root = "C:\\" if os.name == 'nt' else os.path.expanduser('~')
-    if not requested_cwd:
-        return os.path.normpath(default_root)
-
-    cleaned = ''.join(ch for ch in str(requested_cwd) if ch not in '\x00\r\n')
-    if not cleaned:
-        return os.path.normpath(default_root)
-
-    if os.path.isabs(cleaned):
-        candidate = os.path.abspath(cleaned)
-    else:
-        candidate = os.path.abspath(os.path.join(WORKSPACE_ROOT, cleaned))
-
-    if os.path.isdir(candidate):
-        return os.path.normpath(candidate)
-
-    parent = os.path.dirname(candidate)
-    if parent and os.path.isdir(parent):
-        return os.path.normpath(parent)
-
-    return os.path.normpath(default_root)
-
-
-def resolve_terminal_command():
-    bash_path = shutil.which('bash')
-    if bash_path:
-        return [bash_path]
-
-    for candidate in get_common_git_bash_candidates():
-        if os.path.exists(candidate):
-            if candidate.lower().endswith('.lnk'):
-                return ['cmd.exe', '/c', 'start', '', candidate]
-            return [candidate, '--login', '-i']
-
-    if os.name == 'nt':
-        return ['cmd.exe', '/c', 'start', 'cmd']
+def native_terminal_command(cwd):
+    """Return the OS-native terminal command that starts in cwd."""
+    if sys.platform == 'win32':
+        return ['wt.exe', '--startingDirectory', cwd]
+    if sys.platform == 'darwin':
+        return ['open', '-a', 'Terminal', cwd]
     return ['x-terminal-emulator']
 
 
-@app.route('/open-terminal', methods=['POST'])
-def open_terminal():
+@app.route('/launch-native-terminal', methods=['POST'])
+def launch_native_terminal():
+    data = request.get_json(silent=True) or {}
+    cwd = resolve_terminal_cwd(data.get('activePath', ''), data.get('folderPath', ''))
+    used_temp = cwd == os.path.normpath(tempfile.gettempdir())
+    command = native_terminal_command(cwd)
     try:
-        data = request.get_json(silent=True) or {}
-        cwd = resolve_terminal_directory(data.get('cwd'))
-        command = resolve_terminal_command()
-        terminal_input = data.get('input')
-        if terminal_input and os.name == 'nt':
-            if not isinstance(terminal_input, str) or not re.fullmatch(r'python "[^"\r\n]+\.py"', terminal_input, re.IGNORECASE):
-                return jsonify({'status': 'error', 'message': 'Invalid terminal input.'}), 400
-            if command[:3] == ['cmd.exe', '/c', 'start']:
-                command = ['cmd.exe']
-            subprocess.Popen(command, cwd=cwd, creationflags=subprocess.CREATE_NEW_CONSOLE)
-            subprocess.run(['clip.exe'], input=terminal_input, text=True, check=True,
-                           creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-            time.sleep(0.8)
-            import ctypes
-            user32 = ctypes.windll.user32
-            user32.keybd_event(0x11, 0, 0, 0)
-            user32.keybd_event(0x56, 0, 0, 0)
-            user32.keybd_event(0x56, 0, 2, 0)
-            user32.keybd_event(0x11, 0, 2, 0)
-        else:
-            subprocess.Popen(command, cwd=cwd)
-        shell_name = command[0].split(os.sep)[-1] if command and command[0] else 'terminal'
-        return jsonify({'status': 'success', 'message': 'Terminal opened successfully.', 'shell': shell_name, 'path': cwd})
-    except Exception as e:
+        subprocess.Popen(command, cwd=cwd, shell=False)
+    except FileNotFoundError:
+        return jsonify({
+            'status': 'error',
+            'message': f'{command[0]} was not found on this system.'
+        }), 500
+    except OSError as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+    message = f'Terminal opened in {cwd}.'
+    if used_temp:
+        message += ' No file or folder is open, so the temp directory was used.'
+    return jsonify({
+        'status': 'success',
+        'message': message,
+        'terminal': command[0],
+        'path': cwd,
+        'usedTemp': used_temp
+    })
 
 
 def call_external_ai_api(provider, api_key, prompt, code_context="", gateway_url="", model_name=""):

@@ -48,7 +48,7 @@ class DesktopFileApi:
 
     def open_file_dialog(self):
         selected = webview.windows[0].create_file_dialog(
-            webview.OPEN_DIALOG,
+            webview.FileDialog.OPEN,
             allow_multiple=False,
             file_types=('Text and source files (*.*)', 'All files (*.*)')
         )
@@ -59,7 +59,7 @@ class DesktopFileApi:
             return {'path': path, 'name': os.path.basename(path), 'content': source.read()}
 
     def open_folder_dialog(self):
-        selected = webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG)
+        selected = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
         if not selected:
             return None
         root = os.path.abspath(selected[0])
@@ -75,11 +75,11 @@ class DesktopFileApi:
                 path = os.path.join(current, name)
                 authorized = self._authorize(path)
                 node[name] = {'__desktop_path__': authorized}
-        return {'name': os.path.basename(root), 'tree': tree}
+        return {'name': os.path.basename(root), 'path': root, 'tree': tree}
 
     def save_file_dialog(self, suggested_name='untitled.txt'):
         selected = webview.windows[0].create_file_dialog(
-            webview.SAVE_DIALOG,
+            webview.FileDialog.SAVE,
             save_filename=os.path.basename(suggested_name or 'untitled.txt'),
             file_types=('Text and source files (*.*)', 'All files (*.*)')
         )

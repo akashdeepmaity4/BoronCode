@@ -1,7 +1,7 @@
 # Developer FAQ
 
 ## 1. Where is the actual application logic implemented?
-The backend logic lives in `app/app.py`. This file contains the Flask routes, path validation, AI provider adapters, terminal resolution logic, and local model probing.
+The backend logic lives in `app/app.py`. This file contains the Flask routes, path validation, AI provider adapters, native terminal launch logic, and local model probing.
 
 ## 2. How are workspace paths protected from traversal?
 The app uses `resolve_workspace_path()` and `is_git_restricted()` to restrict access to the project root and prevent `.git` access or directory escapes outside the workspace.
@@ -18,17 +18,17 @@ Gateway endpoints often appear in shapes like `localhost:1234/v1/`, `https://pro
 ## 6. What is the safe provider strategy?
 `call_external_ai_api()` sanitizes the provider name, restricts it to an allowlist, and collapses custom-like labels into a shared `custom` route. This prevents invalid provider strings from being used in outbound requests.
 
-## 7. How is the terminal chosen on Windows?
-`resolve_terminal_command()` checks, in order: `bash` in `PATH`, common Git Bash install locations, Git Bash Start Menu shortcut, then Windows `cmd.exe` as a fallback.
+## 7. How is the native terminal launched?
+``Ctrl + ` `` sends the client's current `activePath`/`folderPath` to `POST /launch-native-terminal`. Python turns that into a directory: an open file uses its parent, an open folder uses that folder, and no usable selection falls back to the system temp directory. It then launches `wt.exe --startingDirectory <cwd>` on Windows, `open -a Terminal <cwd>` on macOS, or `x-terminal-emulator` with that cwd on Linux. There is no Bash/CMD fallback chain and no client-supplied command text.
 
 ## 8. What local model ports are probed?
 The app probes common local AI gateway ports such as 11434, 1234, 8080, 8081, 8000, and 3000, and tries common OpenAI-compatible paths such as `/api/generate`, `/v1/chat/completions`, and `/chat/completions`.
 
 ## 9. What security assumptions are enforced for execution?
-`/run-file` supports only a specific set of safe script extensions and invokes subprocesses with `shell=False` and argument lists instead of a shell command string. The path is also validated before it is executed.
+`/run-file` supports `.py`, `.js`, and `.sh`. It resolves the interpreter in PATH first and then in common install locations, invokes subprocesses with `shell=False` and argument lists instead of a shell command string, and validates the script path before execution. Python falls back to the bundled PyInstaller runtime when no user interpreter is found; JavaScript and shell give up with the bottom message box reading `no javascript interpreter found on drive` or `no bash interpreter found on drive`.
 
 ## 10. How should contributors validate changes?
-Run the project’s test suite with `pytest -q` from the repo root. The repo includes regression tests for gateway normalization, custom AI route routing, and terminal fallback logic. If you modify gateway or path handling, add or update tests before relying on the change.
+This checkout has no automated test suite. Verify behavior with the Flask test client or a temporary Python script: mock `subprocess.Popen` to check the native terminal argv/cwd, and mock network calls for provider/gateway changes. The manual smoke checklist in `workflowandcontext.md` section 9 covers the main flows.
 
 ---
 

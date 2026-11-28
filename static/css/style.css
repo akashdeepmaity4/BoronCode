@@ -1,18 +1,21 @@
 :root {
-  --bg-dark: #181818;
-  --bg-sidebar: #191919;
-  --bg-hover: #5f5f5f;
-  --bg-active: #37373d;
-  --border-color: #2b2b2b;
-  --text-main: #ccc;
-  --text-muted: #858585;
+  --bg-dark: #121212;
+  --bg-sidebar: #121212;
+  --bg-header: #1a1a1a;
+  --bg-hover: #292929;
+  --bg-active: #242424;
+  --border-color: #303030;
+  --text-main: #d0d0d0;
+  --text-muted: #929292;
   --accent: #e3a004;
   --accent-hover: #ffcf6e;
   --danger: #c0392b;
   --success: #28a745;
   --warn: #b8860b;
-  --menu-bg: #252526;
-  --menu-border: #2b2b2b;
+  --menu-bg: #1c1c1c;
+  --menu-border: #303030;
+  --editor-selection: #2a2d2e;
+  --editor-selection-inactive: #232323;
 
   /* changeable - Initial Monaco syntax colors*/
   --syntax-color-default: #d4d4d4;
@@ -36,32 +39,20 @@
   --syntax-color-invalid: #f44747;
 }
 
-body.theme-nova {
-  --bg-dark: #121212;
-  --bg-sidebar: #121212;
-  --bg-header: #1a1a1a;
-  --bg-hover: #292929;
-  --bg-active: #242424;
-  --border-color: #303030;
-  --text-main: #d0d0d0;
-  --text-muted: #929292;
-  --menu-bg: #1c1c1c;
-  --menu-border: #303030;
-}
-
 body.theme-amoled {
-  --bg-dark: #000;
-  --bg-sidebar: #000;
+  --bg-dark: #000000;
+  --bg-sidebar: #000000;
   --bg-header: #0a0a0a;
   --bg-hover: #191919;
   --bg-active: #020202;
-  --border-color: #000;
+  --border-color: #000000;
   --text-main: #ededed;
   --text-muted: #a0a0a0;
   --menu-bg: #0c0c0c;
   --menu-border: #202020;
+  --editor-selection: #1a1a1a;
+  --editor-selection-inactive: #101010;
 }
-
 
 body.theme-light {
   --bg-dark: #ffffff;
@@ -74,7 +65,29 @@ body.theme-light {
   --text-muted: #6a6a6a;
   --menu-bg: #f9f9f9;
   --menu-border: #707070;
+  --editor-selection: #c9d6e8;
+  --editor-selection-inactive: #e0e0e0;
 
+  /* Light-readable syntax palette for the Monaco editor */
+  --syntax-color-default: #1e1e1e;
+  --syntax-color-comment: #008000;
+  --syntax-color-keyword: #0000ff;
+  --syntax-color-string: #a31515;
+  --syntax-color-number: #098658;
+  --syntax-color-variable: #001080;
+  --syntax-color-parameter: #001080;
+  --syntax-color-function: #795e26;
+  --syntax-color-type: #267f99;
+  --syntax-color-constant: #0000ff;
+  --syntax-color-operator: #1e1e1e;
+  --syntax-color-punctuation: #383838;
+  --syntax-color-regex: #811f3f;
+  --syntax-color-property: #001080;
+  --syntax-color-namespace: #267f99;
+  --syntax-color-decorator: #795e26;
+  --syntax-color-tag: #800000;
+  --syntax-color-attribute: #e50000;
+  --syntax-color-invalid: #cd3131;
 }
 
 /* ---- Reset ---- */
@@ -253,6 +266,12 @@ body {
   margin-right: 7px;
   vertical-align: -3px;
   object-fit: contain;
+}
+
+.tree-node-group[data-depth] {
+  margin-left: 16px;
+  padding-left: 2px;
+  border-left: 1px solid var(--border-color);
 }
 
 .tree-file:hover,

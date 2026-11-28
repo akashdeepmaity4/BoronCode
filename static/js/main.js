@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let isApplyingEditorContent = false;
   let autoSaveTimeout = null;
   let currentRootDir = null;
+  let currentRootPath = null;
   let ctrlKPending = false;
 
   const el = (id) => document.getElementById(id);
@@ -154,7 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'save-as': triggerSaveAsFile(); break;
       case 'save-copy-as': triggerSaveCopyAsFile(); break;
       case 'run-file': runCurrentFile(); break;
-      case 'open-terminal': openTerminalAtActiveTarget(); break;
       case 'toggle-line-numbers': toggleLineNumbers(); break;
       case 'toggle-preview': toggleMarkdownPreview(); break;
       case 'print-window': window.print(); break;
@@ -457,6 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function freshWindow() {
     setActiveDocument(null, null, 'No file open');
     setEditorContent('', 'No file open');
+    currentRootPath = null;
     showStatus('Fresh window initialized');
   }
 
@@ -496,6 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const result = await window.pywebview.api.open_folder_dialog();
         if (!result) return;
         currentRootDir = result.name;
+        currentRootPath = result.path || '';
         renderTree(result.name, buildDesktopTree(result.tree));
       } catch (err) { showStatus('Could not open folder: ' + err, 'error'); }
       return;
@@ -504,6 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const directoryHandle = await window.showDirectoryPicker();
         currentRootDir = directoryHandle.name;
+        currentRootPath = '';
         renderTree(directoryHandle.name, await buildHandleTree(directoryHandle));
       } catch (err) {
         if (err && err.name === 'AbortError') return;
@@ -516,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function setTheme(themeClass) {
-    const themes = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled'];
+    const themes = ['theme-light', 'theme-dark', 'theme-amoled'];
     if (!themes.includes(themeClass)) return;
     document.body.classList.remove(...themes);
     document.body.classList.add(themeClass);
@@ -546,12 +549,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  const monacoColorVars = {
+    'editor.background': '--bg-dark',
+    'editor.foreground': '--text-main',
+    'editorGutter.background': '--bg-dark',
+    'editorLineNumber.foreground': '--text-muted',
+    'editorLineNumber.activeForeground': '--text-main',
+    'editor.lineHighlightBackground': '--bg-hover',
+    'editor.selectionBackground': '--editor-selection',
+    'editor.inactiveSelectionBackground': '--editor-selection-inactive',
+    'editorCursor.foreground': '--text-main',
+    'editorIndentGuide.background1': '--border-color',
+    'editorWidget.background': '--menu-bg',
+    'editorWidget.border': '--menu-border',
+    'editorSuggestWidget.background': '--menu-bg',
+    'editorSuggestWidget.border': '--menu-border'
+  };
+
+  function normalizeMonacoColor(value) {
+    const color = String(value || '').trim();
+    const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(color);
+    return short ? '#' + short[1] + short[1] + short[2] + short[2] + short[3] + short[3] : color;
+  }
+
+  function readMonacoColorsFromCss() {
+    const styles = window.getComputedStyle(document.body);
+    return Object.entries(monacoColorVars).reduce((colors, [key, variable]) => {
+      const value = normalizeMonacoColor(styles.getPropertyValue(variable));
+      if (value) colors[key] = value;
+      return colors;
+    }, {});
+  }
+
   function applyMonacoSyntaxTheme() {
     const colors = appliedSyntaxColors || readSyntaxColorsFromCss();
     if (!window.monaco || !isMonacoReady) return;
     const rules = [];
     Object.entries(syntaxTokenRules).forEach(([key, tokenScopes]) => {
-      const foreground = colors[key].replace(/^#/, '').toUpperCase();
+      const foreground = normalizeMonacoColor(colors[key]).replace(/^#/, '').toUpperCase();
       tokenScopes.forEach(token => rules.push({ token, foreground }));
     });
     const themeName = 'boron-session-theme-' + (++monacoThemeVersion);
@@ -560,14 +595,14 @@ document.addEventListener('DOMContentLoaded', () => {
       base: isLight ? 'vs' : 'vs-dark',
       inherit: true,
       rules,
-      colors: {},
+      colors: readMonacoColorsFromCss(),
     });
     monaco.editor.setTheme(themeName);
   }
 
   function applySyntaxColorVariables(colors) {
     Object.entries(colors).forEach(([key, color]) => {
-      document.documentElement.style.setProperty('--syntax-color-' + key, color);
+      document.body.style.setProperty('--syntax-color-' + key, color);
     });
   }
 
@@ -605,6 +640,10 @@ document.addEventListener('DOMContentLoaded', () => {
     })
       .then(handleJsonResponse)
       .then(data => {
+        if (data.status === 'interpreter-missing') {
+          showStatus(data.message, 'warn');
+          return;
+        }
         const warning = data.warning ? data.warning + '\n\n' : '';
         if (data.status === 'error') showStatus(warning + 'Execution error: ' + data.message, 'error');
         else alert(warning + (data.stdout || data.stderr || 'Execution completed with no output.'));
@@ -612,18 +651,21 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => showStatus('Run failed: ' + err, 'error'));
   }
 
-  function openTerminalAtActiveTarget(terminalInput = '') {
-    fetch('/open-terminal', {
+  function launchNativeTerminal() {
+    fetch('/launch-native-terminal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cwd: getTerminalTargetCwd(), input: terminalInput })
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== 'success') alert(`Terminal Error: ${data.message}`);
-        else showStatus('Terminal opened with ' + (data.shell || 'default shell') + '.', 'success');
+      body: JSON.stringify({
+        activePath: activeFile.path || '',
+        folderPath: currentRootPath || ''
       })
-      .catch(err => console.error('Terminal execution error:', err));
+    })
+      .then(handleJsonResponse)
+      .then(data => {
+        if (data.status !== 'success') showStatus('Terminal error: ' + data.message, 'error');
+        else showStatus(data.message, 'success');
+      })
+      .catch(err => showStatus('Terminal request failed: ' + err, 'error'));
   }
 
   if (filePicker) {
@@ -891,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (themeDropdown) {
-    const currentTheme = ['theme-light', 'theme-dark', 'theme-nova', 'theme-amoled']
+    const currentTheme = ['theme-light', 'theme-dark', 'theme-amoled']
       .find(themeClass => document.body.classList.contains(themeClass)) || 'theme-dark';
     themeDropdown.querySelectorAll('[data-theme]').forEach((item) => {
       item.setAttribute('aria-checked', String(item.dataset.theme === currentTheme));
@@ -967,17 +1009,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const italicToggle = el('italicToggle');
   if (italicToggle) italicToggle.addEventListener('change', applyFallbackEditorOptions);
 
-  function getTerminalTargetCwd() {
-    if (activeFile && activeFile.path) {
-      const dir = activeFile.path.replace(/\\/g, '/');
-      const lastSlash = dir.lastIndexOf('/');
-      if (lastSlash > 0) return dir.slice(0, lastSlash);
-      return dir.includes(':') ? dir.split(':')[0] + ':' : 'C:/';
-    }
-    if (currentRootDir) return currentRootDir;
-    return 'C:/';
-  }
-
   document.addEventListener('keydown', (e) => {
     const isCtrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
@@ -1019,10 +1050,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Ctrl + ` : Launch Terminal
+    // Ctrl + ` : Launch the OS-native terminal in the project folder
     if (isCtrl && (e.key === '`' || e.code === 'Backquote')) {
       e.preventDefault();
-      openTerminalAtActiveTarget();
+      launchNativeTerminal();
       return;
     }
 
@@ -1114,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!files.length) return;
       const rootName = normalizePath(files[0].webkitRelativePath).split('/')[0];
       currentRootDir = rootName;
+      currentRootPath = '';
       const tree = {};
       files.forEach(file => {
         const rel = normalizePath(file.webkitRelativePath);
@@ -1195,8 +1227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return icons[extension] || 'file-generic.svg';
   }
 
-  function buildTreeNodes(nodeObj) {
+  function buildTreeNodes(nodeObj, depth = 0) {
     const container = document.createElement('div');
+    container.className = 'tree-node-group';
+    if (depth > 0) container.dataset.depth = String(depth);
     Object.keys(nodeObj).forEach(key => {
       const node = nodeObj[key];
       if (node.__type__ === 'file') {
@@ -1241,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fb.appendChild(caret);
         appendTreeIcon(fb, 'folder.svg', 'Folder');
         fb.append(document.createTextNode(key));
-        const kids = buildTreeNodes(node.children);
+        const kids = buildTreeNodes(node.children, depth + 1);
         kids.style.display = 'block';
         fb.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1303,11 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (runFileBtn) {
     runFileBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      if (activeFileNameEl.textContent === 'No file open' || activeFile.ext !== 'py') {
-        showStatus('no python interpreter found', 'error');
-        return;
-      }
-      openTerminalAtActiveTarget('python "' + activeFile.name + '"');
+      runCurrentFile();
     });
   }
 

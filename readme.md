@@ -1,6 +1,6 @@
 # BORON CODE 
 
-Light-weight, low-storage Code Editor with Monaco Editor, Native Terminal with Bash and CMD Fallfack, industry standard 20+ shortcuts and File Tree, custom UI, and custom syntax highlighting for each coding language. With the total file size of <20 MBs and 33 MBs of total self-cleaning runtime environment, and no electron overhead, Boron Code is made for devices with low storage.
+Light-weight, low-storage Code Editor with Monaco Editor, a native OS terminal launcher (Windows Terminal, Terminal.app, or x-terminal-emulator) rooted at the project folder, industry standard 20+ shortcuts and File Tree, custom UI, and custom syntax highlighting for each coding language. With the total file size of <20 MBs and 33 MBs of total self-cleaning runtime environment, and no electron overhead, Boron Code is made for devices with low storage.
 
 ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54) ![Bash](https://img.shields.io/badge/Bash-1f425f?style=for-the-badge&logo=gnu-bash&logoColor=white) ![HTML5](https://img.shields.io/badge/html5-%23E34F26.svg?style=for-the-badge&logo=html5&logoColor=white) ![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white) ![GitHub](https://img.shields.io/badge/github-%23121011.svg?style=for-the-badge&logo=github&logoColor=white) ![Flask](https://img.shields.io/badge/flask-%23000.svg?style=for-the-badge&logo=flask&logoColor=white)
  
@@ -51,8 +51,8 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 | Shortcut | Action | Implementation |
 | --- | --- | --- |
 | `Ctrl + N` | New file in root/target directory | Triggers sidebar button or fallback prompt |
-| `Ctrl + Shift + N` | Fresh window ("No file open") | Resets active file state and clears editor canvas |
-| `Ctrl + `` | Open default Bash or CMD terminal | Calls `POST /open-terminal` |
+| `Ctrl + Shift + N` | New folder in root/target directory | Triggers the new-folder action |
+| ``Ctrl + ` `` | Open native OS terminal in the working directory (temp if nothing is open) | Calls `POST /launch-native-terminal` |
 | `Ctrl + S` | Save active file | Calls `POST /save-file` |
 | `Ctrl + Z` | Undo inside editor | Executes `document.execCommand('undo')` |
 | `Ctrl + Y` | Redo inside editor | Executes `document.execCommand('redo')` |
@@ -75,7 +75,7 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 
 - Pyinstaller (For Windows Application)
 
-- Bash (required for Linux / Mac, highly recommended for Windows)
+- Bash (only needed to run `.sh` files through Run File; the native terminal does not depend on it)
 
 
 
