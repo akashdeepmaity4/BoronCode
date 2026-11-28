@@ -118,7 +118,7 @@ New file, new folder, open file/folder, save, Save As, Save Copy As, delete (for
 | `Ctrl + Z` / `Ctrl + Y` | Undo / redo |
 | `Ctrl + X` / `Ctrl + C` / `Ctrl + V` / `Ctrl + A` | Clipboard and select-all actions |
 | `Ctrl + Shift + V` | Markdown preview (when applicable) |
-| ``Ctrl + ` `` | Launch the native OS terminal in the open file/folder's directory, or temp if nothing is open |
+| ``Ctrl + ` `` | Launch the native OS terminal in the opened project root, then the active file's folder, or temp if nothing is open |
 | `Ctrl + P` | Print window |
 
 The File menu also exposes Close Window (`Alt + F4`) and Exit (`Ctrl + Q`) items; those are menu actions, not global keydown handlers in `main.js`.
@@ -132,7 +132,7 @@ The File menu also exposes Close Window (`Alt + F4`) and Exit (`Ctrl + Q`) items
 - Python runs with the discovered user interpreter. If none is found, a frozen PyInstaller build re-launches the bundled runtime via `launcher.py --boron-run-python <script>`; a source build falls back to `sys.executable`. Both fallbacks return a user-visible warning.
 - Non-Python runtimes have no bundled fallback. If none is found, the route returns `status: interpreter-missing` with `no <language> interpreter found on drive`, which the frontend shows through the existing `showStatus(..., 'warn')` message box.
 - `POST /launch-native-terminal` is the only terminal route. The frontend sends only its current state (`activePath` and `folderPath`); Python's `resolve_terminal_cwd()` decides the directory. No shell command text is accepted from the client.
-- If `activePath` points at an existing file, its parent directory is used. If it points at a directory, that directory is used. `folderPath` is the next candidate. Missing, invalid, or `.git` paths are skipped. If neither is usable, Python falls back to `tempfile.gettempdir()`.
+- If `folderPath` points at an existing directory, that opened project root is used first. `activePath` is the next candidate: a file uses its parent directory and a directory uses that directory. Missing, invalid, or `.git` paths are skipped. If neither is usable, Python falls back to `tempfile.gettempdir()`.
 - Windows uses `wt.exe --startingDirectory <cwd>`, macOS uses `open -a Terminal <cwd>`, and Linux uses `x-terminal-emulator` with `cwd=<resolved directory>` and `shell=False`.
 - The old `/open-terminal` route, Git Bash/CMD resolution chain, and clipboard/paste command preparation have been removed. The JSON reply includes the resolved `path` and a `usedTemp` flag.
 
@@ -170,7 +170,7 @@ The backend is intentionally defensive.
 ### Execution restrictions
 
 - `run-file` uses an extension allowlist, `shell=False`, and argument lists. No shell interpretation is applied to user file paths.
-- The terminal launcher uses a fixed per-platform argument list, the Python-resolved working directory, and `shell=False`; it accepts no user-supplied command text. Path values from the client are treated as location hints only.
+- The terminal launcher uses a fixed per-platform argument list, the Python-resolved project root (or file folder fallback), and `shell=False`; it accepts no user-supplied command text. Path values from the client are treated as location hints only.
 
 ---
 
@@ -205,7 +205,7 @@ Before relying on changes to gateway, path, or execution handling, verify behavi
 4. Verify custom gateway normalization with `localhost:1234/v1`, a bare host, and a full `/chat/completions` URL.
 5. Verify `verify-external-api` rejects missing keys for known providers but accepts a gateway-only custom provider.
 6. Run a small `.py` file and confirm output plus the 15-second timeout path.
-7. Confirm ``Ctrl + ` `` calls only `/launch-native-terminal`; with an open file/folder, verify `subprocess.Popen` receives its directory, and with no selection, verify it receives the system temp directory.
+7. Confirm ``Ctrl + ` `` calls only `/launch-native-terminal`; with an open folder and a nested active file, verify `subprocess.Popen` receives the folder root, and with no selection, verify it receives the system temp directory.
 
 The historical regression pattern was to validate real behavior with mocked network calls rather than mock-only assertions.
 

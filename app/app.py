@@ -431,8 +431,8 @@ def run_file():
 
 
 def resolve_terminal_cwd(active_path="", folder_path=""):
-    """Pick the terminal cwd from the open file/folder, or fall back to temp."""
-    for value in (active_path, folder_path):
+    """Prefer the opened project root, then the active file's folder, then temp."""
+    for value in (folder_path, active_path):
         if not value or not isinstance(value, str):
             continue
         cleaned = ''.join(ch for ch in value if ch not in '\x00\r\n')
@@ -474,7 +474,7 @@ def launch_native_terminal():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     message = f'Terminal opened in {cwd}.'
     if used_temp:
-        message += ' No file or folder is open, so the temp directory was used.'
+        message += ' No project folder or file is open, so the temp directory was used.'
     return jsonify({
         'status': 'success',
         'message': message,

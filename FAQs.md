@@ -19,7 +19,7 @@ Gateway endpoints often appear in shapes like `localhost:1234/v1/`, `https://pro
 `call_external_ai_api()` sanitizes the provider name, restricts it to an allowlist, and collapses custom-like labels into a shared `custom` route. This prevents invalid provider strings from being used in outbound requests.
 
 ## 7. How is the native terminal launched?
-``Ctrl + ` `` sends the client's current `activePath`/`folderPath` to `POST /launch-native-terminal`. Python turns that into a directory: an open file uses its parent, an open folder uses that folder, and no usable selection falls back to the system temp directory. It then launches `wt.exe --startingDirectory <cwd>` on Windows, `open -a Terminal <cwd>` on macOS, or `x-terminal-emulator` with that cwd on Linux. There is no Bash/CMD fallback chain and no client-supplied command text.
+``Ctrl + ` `` sends the client's current `activePath`/`folderPath` to `POST /launch-native-terminal`. Python turns that into a directory: the opened project root wins, then an open file's parent, and no usable selection falls back to the system temp directory. It then launches `wt.exe --startingDirectory <cwd>` on Windows, `open -a Terminal <cwd>` on macOS, or `x-terminal-emulator` with that cwd on Linux. There is no Bash/CMD fallback chain and no client-supplied command text.
 
 ## 8. What local model ports are probed?
 The app probes common local AI gateway ports such as 11434, 1234, 8080, 8081, 8000, and 3000, and tries common OpenAI-compatible paths such as `/api/generate`, `/v1/chat/completions`, and `/chat/completions`.

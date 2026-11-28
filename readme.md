@@ -52,7 +52,7 @@ This is not in any way a tutorial, or a copy of any other 'editor', 'brand' or '
 | --- | --- | --- |
 | `Ctrl + N` | New file in root/target directory | Triggers sidebar button or fallback prompt |
 | `Ctrl + Shift + N` | New folder in root/target directory | Triggers the new-folder action |
-| ``Ctrl + ` `` | Open native OS terminal in the working directory (temp if nothing is open) | Calls `POST /launch-native-terminal` |
+| ``Ctrl + ` `` | Open native OS terminal in the opened project root (active file's folder, then temp, if no folder is open) | Calls `POST /launch-native-terminal` |
 | `Ctrl + S` | Save active file | Calls `POST /save-file` |
 | `Ctrl + Z` | Undo inside editor | Executes `document.execCommand('undo')` |
 | `Ctrl + Y` | Redo inside editor | Executes `document.execCommand('redo')` |
